@@ -1,0 +1,2238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Ocean's Memory Palace · Pacific Climate Archive</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500&display=swap');
+
+:root {
+  --bg: #030d1a;
+  --text: #c8d8e8;
+  --text-dim: #4e6e8a;
+  --heat-col: #e8531a;
+  --rain-col: #22d3ee;
+  --rise-col: #3b82f6;
+  --loss-col: #c43030;
+  --future-col: #10b981;
+  --memory-col: #c9a84c;
+  --white: #eef5ff;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-weight: 300;
+  overflow-x: hidden;
+}
+
+/* ── SCROLL CONTAINER ── */
+#scroll-root {
+  height: 100vh;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  position: relative;
+  scrollbar-width: none;
+}
+#scroll-root::-webkit-scrollbar { display: none; }
+
+/* ── BACKGROUND CANVAS ── */
+#bg-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── ATMOSPHERE LAYERS ── */
+#bg-atmosphere {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+#bg-gradient-layer {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: -1;
+  transition: opacity 0.1s;
+}
+
+#bg-shimmer-layer {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+
+@keyframes heatShimmer {
+  0%   { background-position: 0% 50%; opacity: 0.04; }
+  50%  { background-position: 100% 50%; opacity: 0.09; }
+  100% { background-position: 0% 50%; opacity: 0.04; }
+}
+
+@keyframes rainStreaks {
+  0%   { background-position: 0 0; }
+  100% { background-position: 20px 100vh; }
+}
+
+@keyframes oceanBreath {
+  0%, 100% { transform: scaleY(1) translateY(0px); opacity: 0.07; }
+  50%       { transform: scaleY(1.04) translateY(-8px); opacity: 0.12; }
+}
+
+@keyframes warnPulse {
+  0%, 100% { opacity: 0; }
+  50%       { opacity: 0.06; }
+}
+
+@keyframes futureGlow {
+  0%, 100% { opacity: 0.05; transform: scale(1); }
+  50%       { opacity: 0.12; transform: scale(1.06); }
+}
+
+@keyframes driftWave {
+  0%   { transform: translateX(0px) translateY(0px); }
+  33%  { transform: translateX(12px) translateY(-6px); }
+  66%  { transform: translateX(-8px) translateY(8px); }
+  100% { transform: translateX(0px) translateY(0px); }
+}
+
+/* ── BEACH ENTRANCE CANVAS ── */
+#beach-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: -2;
+  opacity: 1;
+  transition: opacity 2.2s cubic-bezier(0.4,0,0.2,1);
+}
+#beach-canvas.hidden {
+  opacity: 0;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 40px;
+  background: linear-gradient(to bottom, rgba(3,13,26,0.98) 0%, rgba(3,13,26,0.6) 70%, transparent 100%);
+  pointer-events: auto;
+}
+
+.nav-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.nav-dots { display: flex; gap: 12px; align-items: center; }
+
+.nav-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: rgba(90,122,153,0.45);
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+  position: relative;
+}
+
+.nav-dot::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 50%; right: calc(100% + 10px);
+  transform: translateY(-50%);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.nav-dot:hover::after { opacity: 1; }
+
+.nav-dot.active {
+  background: var(--white);
+  transform: scale(1.9);
+  box-shadow: 0 0 10px rgba(238,245,255,0.45);
+}
+
+/* ── COUNTRY SELECTOR ── */
+.country-select-wrap {
+  position: fixed;
+  bottom: 26px; right: 26px;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  transform: translateY(10px);
+}
+.country-select-wrap.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.country-select-wrap label {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 5px;
+  text-align: right;
+}
+.country-select-wrap select {
+  background: rgba(3,13,26,0.93);
+  border: 1px solid rgba(90,122,153,0.38);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  padding: 7px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.3s;
+}
+.country-select-wrap select:hover { border-color: rgba(90,122,153,0.7); }
+
+/* ── DETAIL PANEL ── */
+.detail-panel {
+  position: fixed;
+  bottom: 80px; left: 40px;
+  z-index: 300;
+  background: rgba(3,10,22,0.97);
+  border: 1px solid rgba(90,122,153,0.2);
+  border-left: 3px solid var(--dp-accent, #3b82f6);
+  border-radius: 0 6px 6px 0;
+  padding: 16px 22px 16px 18px;
+  max-width: 285px;
+  min-width: 215px;
+  backdrop-filter: blur(16px);
+  transform: translateX(-350px);
+  opacity: 0;
+  transition: transform 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.35s;
+  pointer-events: none;
+}
+.detail-panel.show {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.dp-close {
+  position: absolute;
+  top: 10px; right: 11px;
+  background: none; border: none;
+  color: var(--text-dim); cursor: pointer;
+  font-size: 12px; line-height: 1;
+  padding: 3px 5px;
+  border-radius: 3px;
+  transition: color 0.2s, background 0.2s;
+}
+.dp-close:hover { color: var(--white); background: rgba(90,122,153,0.15); }
+.dp-year {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px; font-weight: 300;
+  color: var(--white); line-height: 1;
+  margin-bottom: 3px;
+}
+.dp-value {
+  font-size: 13px; font-weight: 500;
+  color: var(--dp-accent, #3b82f6);
+  margin-bottom: 7px;
+}
+.dp-country {
+  font-size: 9px; letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.dp-interpretation {
+  font-size: 11px; line-height: 1.65;
+  color: var(--text);
+  padding-top: 10px;
+  border-top: 1px solid rgba(90,122,153,0.14);
+}
+
+/* ── SECTIONS ── */
+.section {
+  height: 100vh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* Room gradients — semi-transparent to let atmosphere canvas show through */
+#intro   { background: transparent; }
+#heat    { background: radial-gradient(ellipse at 74% 26%, rgba(190,48,6,0.18) 0%, rgba(3,13,26,0.22) 52%), radial-gradient(ellipse at 22% 78%, rgba(140,22,0,0.10) 0%, transparent 48%); }
+#rain    { background: radial-gradient(ellipse at 32% 52%, rgba(4,72,108,0.20) 0%, rgba(3,13,26,0.18) 58%), radial-gradient(ellipse at 72% 28%, rgba(34,211,238,0.04) 0%, transparent 40%); }
+#rising  { background: radial-gradient(ellipse at 52% 66%, rgba(16,52,128,0.18) 0%, rgba(3,13,26,0.18) 60%); }
+#loss    { background: radial-gradient(ellipse at 48% 44%, rgba(110,14,14,0.18) 0%, rgba(3,13,26,0.22) 56%), radial-gradient(ellipse at 80% 72%, rgba(170,68,0,0.06) 0%, transparent 40%); }
+#future  { background: radial-gradient(ellipse at 38% 62%, rgba(4,60,44,0.18) 0%, rgba(3,13,26,0.18) 58%); }
+#memory  { background: radial-gradient(ellipse at 50% 50%, rgba(28,18,52,0.28) 0%, rgba(3,13,26,0.20) 68%); }
+
+/* Room decorative overlays */
+.heat-orb {
+  position: absolute; top: 18%; right: 8%;
+  width: 280px; height: 280px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(232,83,26,0.09) 0%, transparent 68%);
+  animation: heatOrb 5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes heatOrb { 0%,100%{transform:scale(1);opacity:.7;} 50%{transform:scale(1.18);opacity:1;} }
+
+.tide-bar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(to right, transparent 0%, rgba(59,130,246,0.55) 40%, rgba(59,130,246,0.8) 60%, transparent 100%);
+  animation: tideBar 3.5s ease-in-out infinite;
+}
+@keyframes tideBar { 0%,100%{transform:scaleX(0.9) translateX(-3%);opacity:.5;} 50%{transform:scaleX(1.05) translateX(3%);opacity:1;} }
+
+/* ── SECTION INNER ── */
+.section-inner {
+  max-width: 920px; width: 100%;
+  padding: 68px 40px 20px;
+  display: flex; flex-direction: column;
+  gap: 14px;
+  opacity: 0; transform: translateY(28px);
+  transition: opacity 0.85s ease, transform 0.85s ease;
+  height: 100%; justify-content: center;
+}
+.section-inner.visible { opacity: 1; transform: translateY(0); }
+
+/* ── TEXT ELEMENTS ── */
+.eyebrow {
+  font-size: 8.5px; letter-spacing: 0.34em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.section-number {
+  font-size: 8.5px; letter-spacing: 0.24em;
+  color: var(--text-dim); margin-bottom: 4px;
+}
+h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(46px, 7.2vw, 86px); font-weight: 300;
+  line-height: 0.93; color: var(--white); letter-spacing: -0.022em;
+}
+h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(30px, 4.2vw, 50px); font-weight: 300;
+  line-height: 1.1; color: var(--white); letter-spacing: -0.01em;
+}
+.section-divider {
+  width: 38px; height: 1px;
+  background: currentColor; opacity: 0.3;
+  border: none; margin-top: 12px;
+}
+.insight {
+  font-size: 14px; line-height: 1.76;
+  color: var(--text); font-weight: 300; max-width: 560px;
+}
+.insight em { font-style: italic; color: var(--white); }
+.stat-row { display: flex; align-items: baseline; gap: 10px; margin-top: 2px; }
+.stat-big {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 40px; font-weight: 300;
+  color: var(--white); line-height: 1;
+}
+.stat-label { font-size: 11px; color: var(--text-dim); letter-spacing: 0.06em; }
+
+/* ── CHIP ROW ── */
+.chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(90,122,153,0.1);
+  border: 1px solid rgba(90,122,153,0.2);
+  border-radius: 20px; padding: 3px 10px;
+  font-size: 9.5px; letter-spacing: 0.04em; color: var(--text);
+  transition: all 0.25s; cursor: default;
+}
+.chip:hover { background: rgba(90,122,153,0.2); border-color: rgba(90,122,153,0.4); }
+.chip-dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── CHART ── */
+.chart-wrap {
+  position: relative; width: 100%;
+  height: clamp(168px, 22vh, 245px);
+}
+.chart-label {
+  font-size: 8.5px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--text-dim); margin-top: 7px;
+}
+
+/* ── INTRO SECTION ── */
+.intro-sub {
+  font-size: 13.5px; line-height: 1.82;
+  color: var(--text-dim); max-width: 490px; margin-top: 14px;
+}
+.archive-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.archive-tag {
+  font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-dim); border: 1px solid rgba(90,122,153,0.22);
+  border-radius: 3px; padding: 3px 8px;
+}
+.scroll-cue {
+  display: flex; align-items: center; gap: 14px;
+  color: var(--text-dim); font-size: 8.5px;
+  letter-spacing: 0.24em; text-transform: uppercase; margin-top: 24px;
+}
+.scroll-line {
+  width: 34px; height: 1px; background: var(--text-dim);
+  animation: scrollCue 2.8s ease-in-out infinite;
+}
+@keyframes scrollCue { 0%,100%{width:34px;opacity:.4;} 50%{width:58px;opacity:.85;} }
+
+/* ── HEAT ── */
+#heat h2, #heat .section-divider { color: var(--heat-col); }
+
+/* ── RAIN ── */
+#rain h2, #rain .section-divider { color: var(--rain-col); }
+
+/* ── RISING ── */
+#rising h2, #rising .section-divider { color: var(--rise-col); }
+
+/* ── LOSS ── */
+#loss h2, #loss .section-divider { color: var(--loss-col); }
+.loss-toggle {
+  display: flex; width: fit-content;
+  border: 1px solid rgba(90,122,153,0.28);
+  border-radius: 4px; overflow: hidden;
+}
+.toggle-btn {
+  background: transparent; border: none;
+  color: var(--text-dim); font-family: 'Inter', sans-serif;
+  font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+  padding: 6px 14px; cursor: pointer; transition: all 0.25s;
+}
+.toggle-btn.active { background: rgba(155,32,32,0.38); color: var(--white); }
+.toggle-btn:hover:not(.active) { background: rgba(90,122,153,0.1); color: var(--text); }
+
+/* ── FUTURE ── */
+#future h2, #future .section-divider { color: var(--future-col); }
+.progress-item { margin-bottom: 13px; }
+.progress-header {
+  display: flex; justify-content: space-between;
+  margin-bottom: 5px; font-size: 9.5px;
+  color: var(--text-dim); letter-spacing: 0.05em;
+}
+.progress-bar-track {
+  height: 3px; background: rgba(90,122,153,0.16);
+  border-radius: 2px; overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%; border-radius: 2px; width: 0%;
+  transition: width 2s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* ── MEMORY ── */
+#memory h2, #memory .section-divider { color: var(--memory-col); }
+.memory-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px; align-items: start;
+}
+.memory-card {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(201,168,76,0.22);
+  border-radius: 10px; padding: 22px;
+  position: relative; overflow: hidden;
+  transition: border-color 0.4s;
+}
+.memory-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(to right, transparent, rgba(201,168,76,0.55), transparent);
+}
+.memory-card:hover { border-color: rgba(201,168,76,0.42); }
+.mc-country {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px; font-weight: 300;
+  color: var(--white); margin-bottom: 3px;
+}
+.mc-subtitle {
+  font-size: 8.5px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 16px;
+}
+.mc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mc-stat {
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(90,122,153,0.1);
+}
+.mc-val {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 21px; font-weight: 300; color: var(--white); line-height: 1;
+}
+.mc-key {
+  font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-dim); margin-top: 2px;
+}
+.memory-reflection { display: flex; flex-direction: column; gap: 14px; justify-content: center; }
+.ending-quote {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(16px, 2.2vw, 24px); font-weight: 300; font-style: italic;
+  line-height: 1.65; color: var(--text); opacity: 0.9;
+}
+.source-note {
+  font-size: 9px; color: var(--text-dim); letter-spacing: 0.04em;
+  line-height: 2; opacity: 0.5;
+}
+/* ── CLOSING / EPILOGUE ── */
+#closing {
+  background:
+    radial-gradient(ellipse at 50% 38%, rgba(201,168,76,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 70%, rgba(34,211,238,0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(6,16,30,0.72) 0%, rgba(3,13,26,0.65) 70%);
+}
+.closing-inner {
+  max-width: 720px; width: 100%;
+  padding: 68px 40px 20px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 26px; text-align: center;
+  opacity: 0; transform: translateY(28px);
+  transition: opacity 1.1s ease, transform 1.1s ease;
+  height: 100%; justify-content: center;
+}
+.closing-inner.visible { opacity: 1; transform: translateY(0); }
+.closing-eyebrow {
+  font-size: 8.5px; letter-spacing: 0.34em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.closing-quote {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(20px, 3vw, 30px); font-weight: 300; font-style: italic;
+  line-height: 1.6; color: var(--white); opacity: 0.95;
+}
+.closing-quote span { display: block; }
+.closing-line {
+  width: 38px; height: 1px;
+  background: var(--memory-col); opacity: 0.4;
+}
+.closing-signature {
+  font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--text-dim); opacity: 0.6;
+}
+.closing-return {
+  margin-top: 6px;
+  background: transparent;
+  border: 1px solid rgba(90,122,153,0.3);
+  color: var(--text-dim); font-family: 'Inter', sans-serif;
+  font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
+  padding: 9px 18px; border-radius: 3px; cursor: pointer;
+  transition: all 0.3s;
+}
+.closing-return:hover {
+  color: var(--white);
+  border-color: rgba(201,168,76,0.45);
+  background: rgba(201,168,76,0.07);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 680px) {
+  nav { padding: 14px 18px; }
+  .section-inner { padding: 64px 18px 16px; gap: 11px; }
+  .memory-layout { grid-template-columns: 1fr; }
+  .closing-inner { padding: 64px 22px 16px; gap: 20px; }
+  .mc-grid { grid-template-columns: 1fr 1fr; }
+  h1 { font-size: 42px; }
+  h2 { font-size: 28px; }
+  .detail-panel { left: 18px; max-width: calc(100vw - 36px); }
+  .country-select-wrap { bottom: 18px; right: 18px; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="beach-canvas"></canvas>
+<canvas id="bg-atmosphere"></canvas>
+<div id="bg-gradient-layer"></div>
+<div id="bg-shimmer-layer"></div>
+<canvas id="bg-canvas"></canvas>
+
+<nav>
+  <span class="nav-title">The Ocean's Memory Palace</span>
+  <div class="nav-dots" id="navDots">
+    <div class="nav-dot active" data-section="intro"   data-label="Entrance"></div>
+    <div class="nav-dot"        data-section="heat"    data-label="Heat"></div>
+    <div class="nav-dot"        data-section="rain"    data-label="Rain"></div>
+    <div class="nav-dot"        data-section="rising"  data-label="Rising"></div>
+    <div class="nav-dot"        data-section="loss"    data-label="Loss"></div>
+    <div class="nav-dot"        data-section="future"  data-label="Future"></div>
+    <div class="nav-dot"        data-section="memory"  data-label="Memory"></div>
+    <div class="nav-dot"        data-section="closing" data-label="Epilogue"></div>
+  </div>
+</nav>
+
+<div class="country-select-wrap" id="countrySelector">
+  <label>Filter by territory</label>
+  <select id="countrySelect">
+    <option value="ALL">Pacific Average</option>
+  </select>
+</div>
+
+<div class="detail-panel" id="detailPanel">
+  <button class="dp-close" id="dpClose" aria-label="Close">✕</button>
+  <div class="dp-year"   id="dpYear"></div>
+  <div class="dp-value"  id="dpValue"></div>
+  <div class="dp-country" id="dpCountry"></div>
+  <div class="dp-interpretation" id="dpInterp"></div>
+</div>
+
+<div id="scroll-root">
+
+  <!-- ══ 1. ENTRANCE ══ -->
+  <section class="section" id="intro">
+    <div class="section-inner">
+      <div>
+        <p class="eyebrow">Pacific Climate Archive · 22 Nations &amp; Territories · 1950–2025</p>
+        <h1>The Ocean's<br>Memory<br>Palace</h1>
+        <p class="intro-sub">
+          The Pacific Ocean holds a record of everything that has happened to it.
+          Temperature, tides, storms — encoded in its water like memories it cannot forget.
+          This is that story.
+        </p>
+        <div class="archive-tags">
+          <span class="archive-tag">Sea Surface Heat</span>
+          <span class="archive-tag">Rainfall Patterns</span>
+          <span class="archive-tag">Sea Level Rise</span>
+          <span class="archive-tag">Disaster Impact</span>
+          <span class="archive-tag">Renewable Energy</span>
+          <span class="archive-tag">Safe Water Access</span>
+        </div>
+      </div>
+      <div class="scroll-cue">
+        <div class="scroll-line"></div>
+        <span>Enter the archive</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 2. HEAT ROOM ══ -->
+  <section class="section" id="heat">
+    <div class="heat-orb"></div>
+    <div class="section-inner">
+      <div>
+        <p class="section-number">Room 01 · Heat</p>
+        <h2>The sea remembers<br>every degree.</h2>
+        <hr class="section-divider" style="color:var(--heat-col);">
+      </div>
+      <p class="insight">
+        Sea surface temperatures across the Pacific have warmed beyond the range of natural variability.
+        The anomaly that was once a brief statistical outlier <em>is now the baseline.</em>
+        Since 2000, the ocean has not returned to its pre-industrial memory.
+      </p>
+      <div>
+        <div class="chart-wrap"><canvas id="heatChart"></canvas></div>
+        <p class="chart-label">Sea Surface Temperature Anomaly (°C) · Click any point to explore</p>
+        <div class="chip-row" id="heatChips"></div>
+      </div>
+      <div class="stat-row">
+        <span class="stat-big" id="heatStat">—</span>
+        <span class="stat-label">peak anomaly on record</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 3. RAIN ROOM ══ -->
+  <section class="section" id="rain">
+    <div class="section-inner">
+      <div>
+        <p class="section-number">Room 02 · Rain</p>
+        <h2>The sky has lost<br>its rhythm.</h2>
+        <hr class="section-divider" style="color:var(--rain-col);">
+      </div>
+      <p class="insight">
+        Rainfall across Pacific Island nations swings between drought and deluge with increasing ferocity.
+        The monsoon patterns that sustained cultures for millennia
+        <em>are becoming erratic, unpredictable, extreme.</em>
+        Every bar below the line is a drought. Every bar above is a flood.
+      </p>
+      <div>
+        <div class="chart-wrap"><canvas id="rainChart"></canvas></div>
+        <p class="chart-label">Rainfall Anomaly (mm) · Click any bar to explore</p>
+        <div class="chip-row" id="rainChips"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 4. RISING ROOM ══ -->
+  <section class="section" id="rising">
+    <div class="tide-bar"></div>
+    <div class="section-inner">
+      <div>
+        <p class="section-number">Room 03 · Rising</p>
+        <h2>Land is becoming<br>a borrowed thing.</h2>
+        <hr class="section-divider" style="color:var(--rise-col);">
+      </div>
+      <p class="insight">
+        Pacific sea levels have risen steadily since satellite measurement began in 1993.
+        For island nations with average elevations under two metres,
+        <em>this is not an abstract statistic — it is the loss of home.</em>
+        Tuvalu. Kiribati. Marshall Islands. Each centimetre is irreplaceable.
+      </p>
+      <div>
+        <div class="chart-wrap"><canvas id="risingChart"></canvas></div>
+        <p class="chart-label">Sea Level Anomaly Index · 1993–2023 · Click any point to explore</p>
+        <div class="chip-row" id="risingChips"></div>
+      </div>
+      <div class="stat-row">
+        <span class="stat-big" id="risingStat">—</span>
+        <span class="stat-label">latest sea level index above 1993 baseline</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 5. LOSS ROOM ══ -->
+  <section class="section" id="loss">
+    <div class="section-inner">
+      <div>
+        <p class="section-number">Room 04 · Loss</p>
+        <h2>Numbers behind<br>the silence.</h2>
+        <hr class="section-divider" style="color:var(--loss-col);">
+      </div>
+      <p class="insight">
+        Cyclones, floods, droughts — the disasters are intensifying.
+        In 2016, Cyclone Winston — the most powerful tropical cyclone ever recorded in the Southern Hemisphere —
+        <em>displaced over 630,000 people in Fiji alone.</em> The losses compound across generations.
+      </p>
+      <div>
+        <div class="loss-toggle" id="lossToggle">
+          <button class="toggle-btn active" data-mode="people">People Affected</button>
+          <button class="toggle-btn" data-mode="econ">Economic Loss</button>
+        </div>
+        <div class="chart-wrap" style="margin-top:9px;"><canvas id="lossChart"></canvas></div>
+        <p class="chart-label" id="lossLabel">Persons Directly Affected by Disasters · per year · Click any bar to explore</p>
+        <div class="chip-row" id="lossChips"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 6. FUTURE ROOM ══ -->
+  <section class="section" id="future">
+    <div class="section-inner">
+      <div>
+        <p class="section-number">Room 05 · Future</p>
+        <h2>Resilience is<br>being written now.</h2>
+        <hr class="section-divider" style="color:var(--future-col);">
+      </div>
+      <p class="insight">
+        Pacific nations are not passive observers of their own fate.
+        Access to safe water grows steadily. Solar energy is transforming island power grids.
+        <em>The memory of what was lost is becoming the blueprint for what must be built.</em>
+      </p>
+      <div>
+        <div class="chart-wrap"><canvas id="futureChart"></canvas></div>
+        <p class="chart-label">Renewable Energy Share (%) &amp; Safe Water Access (%) · 2000–2022</p>
+      </div>
+      <div>
+        <div class="progress-item">
+          <div class="progress-header">
+            <span>Safe Water Access</span>
+            <span id="waterVal">—</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="waterBar" style="background:var(--future-col);"></div>
+          </div>
+        </div>
+        <div class="progress-item">
+          <div class="progress-header">
+            <span>Renewable Energy Share</span>
+            <span id="renewVal">—</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="renewBar" style="background:#6366f1;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 7. MEMORY ROOM ══ -->
+  <section class="section" id="memory">
+    <div class="section-inner" style="justify-content:center;">
+      <div>
+        <p class="eyebrow">Room 06 · Memory · Reflection · Archive</p>
+        <h2>This is the archive<br>of a living ocean.</h2>
+        <hr class="section-divider" style="color:var(--memory-col);">
+      </div>
+      <div class="memory-layout">
+        <div class="memory-card" id="memoryCard">
+          <p class="mc-country" id="mcCountry">Pacific Average</p>
+          <p class="mc-subtitle">Climate Memory · 1950–2025</p>
+          <div class="mc-grid" id="mcGrid"></div>
+        </div>
+        <div class="memory-reflection">
+          <p class="ending-quote" id="memoryQuote">
+            "The ocean does not forget. It stores every degree we have added,
+            every coastline we have dissolved, every storm we have made stronger.
+            What it holds now is a question only we can answer."
+          </p>
+          <p class="insight" id="memoryContext" style="font-size:12px;max-width:100%;opacity:.78;">
+            Twenty-two nations. Millions of people. One ocean. One future.
+          </p>
+          <p class="source-note">
+            Data: Pacific Community (SPC) — Climate Change Indicators &amp; SDG Datasets, 2026<br>
+            Indicators: SST Anomaly · Rainfall · Sea Level · Disasters · Renewable Energy · Water Access<br>
+            Coverage: 22 Pacific Island Countries &amp; Territories · 1950–2025
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 8. CLOSING ROOM / EPILOGUE ══ -->
+  <section class="section" id="closing">
+    <div class="closing-inner">
+      <p class="closing-eyebrow">Epilogue · Pacific Climate Archive</p>
+      <p class="closing-quote">
+        <span>The ocean does not ask us to look away.</span>
+        <span>It asks us to remember.</span>
+        <span>Every degree, every storm, every island, every life carried by the tide</span>
+        <span>is part of a future still being written.</span>
+        <span>What remains after the data is not only evidence.</span>
+        <span>It is responsibility.</span>
+      </p>
+      <div class="closing-line"></div>
+      <p class="closing-signature">Pacific Climate Archive · The Ocean's Memory Palace</p>
+      <button class="closing-return" id="returnToEntrance">Return to Entrance</button>
+    </div>
+  </section>
+
+</div><!-- /scroll-root -->
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   THE OCEAN'S MEMORY PALACE · v2
+   Cinematic Scrollytelling · Pacific Climate Data
+   ═══════════════════════════════════════════════════════════ */
+
+// ── DATA ─────────────────────────────────────────────────
+const PACIFIC_COUNTRIES = {
+  FJ:'Fiji', TO:'Tonga', KI:'Kiribati', VU:'Vanuatu',
+  TV:'Tuvalu', PG:'Papua New Guinea', WS:'Samoa', MH:'Marshall Islands'
+};
+const SST_AVG = {"1950":-0.3,"1951":-0.171,"1952":-0.09,"1953":-0.081,"1954":-0.238,"1955":-0.395,"1956":-0.267,"1957":-0.252,"1958":-0.171,"1959":-0.181,"1960":-0.152,"1961":-0.167,"1962":-0.181,"1963":-0.133,"1964":-0.224,"1965":-0.419,"1966":-0.2,"1967":-0.252,"1968":-0.124,"1969":0.067,"1970":-0.014,"1971":-0.224,"1972":-0.252,"1973":0.014,"1974":-0.2,"1975":-0.295,"1976":-0.276,"1977":-0.157,"1978":-0.133,"1979":-0.09,"1980":-0.005,"1981":-0.043,"1982":-0.086,"1983":-0.214,"1984":-0.029,"1985":-0.129,"1986":-0.081,"1987":-0.086,"1988":0.186,"1989":-0.029,"1990":0.081,"1991":0.1,"1992":-0.043,"1993":-0.176,"1994":0.029,"1995":0.243,"1996":0.19,"1997":-0.0,"1998":0.057,"1999":0.105,"2000":0.167,"2001":0.281,"2002":0.367,"2003":0.414,"2004":0.39,"2005":0.4,"2006":0.319,"2007":0.395,"2008":0.181,"2009":0.371,"2010":0.357,"2011":0.21,"2012":0.29,"2013":0.419,"2014":0.471,"2015":0.3,"2016":0.59,"2017":0.595,"2018":0.524,"2019":0.571,"2020":0.61,"2021":0.476,"2022":0.476,"2023":0.571,"2024":0.733,"2025":0.638};
+const RAIN_AVG = {"1979":-5.35,"1980":-3.06,"1981":-2.49,"1982":-2.48,"1983":-12.06,"1984":-2.52,"1985":-0.65,"1986":0.67,"1987":-1.77,"1988":1.52,"1989":-3.97,"1990":2.82,"1991":-2.12,"1992":-2.74,"1993":1.35,"1994":-1.48,"1995":-2.05,"1996":-3.56,"1997":1.16,"1998":-10.72,"1999":-3.13,"2000":-4.66,"2001":-1.02,"2002":3.03,"2003":0.18,"2004":2.4,"2005":2.29,"2006":2.54,"2007":3.46,"2008":-8.23,"2009":1.4,"2010":-3.41,"2011":-6.29,"2012":2.3,"2013":1.64,"2014":3.02,"2015":2.84,"2016":-0.85,"2017":0.85,"2018":-0.43,"2019":19.75,"2020":2.53,"2021":-6.47,"2022":-7.1,"2023":3.45,"2024":1.46,"2025":-0.92};
+const SEA_AVG = {"1993":-0.19,"1994":-0.048,"1995":0.0,"1996":0.19,"1997":-0.19,"1998":-0.619,"1999":0.143,"2000":0.333,"2001":0.238,"2002":0.143,"2003":0.095,"2004":0.286,"2005":0.286,"2006":0.429,"2007":0.619,"2008":0.81,"2009":0.571,"2010":0.238,"2011":0.762,"2012":0.667,"2013":0.667,"2014":0.524,"2015":0.286,"2016":0.333,"2017":1.0,"2018":0.857,"2019":0.905,"2020":1.0,"2021":1.238,"2022":1.333,"2023":1.048};
+const DISASTER_AFFECTED_AVG = {"2005":160,"2006":34,"2007":11092,"2008":4160,"2009":1675,"2010":2174,"2011":88,"2012":4879,"2013":1120,"2014":1983,"2015":14000,"2016":81545,"2017":7427,"2018":42084,"2019":11153,"2020":34312,"2021":11926,"2022":15044,"2023":138};
+const DISASTER_LOSS_AVG = {"2007":0.0,"2010":9.55,"2011":0.98,"2012":30.01,"2013":7.17,"2014":4.88,"2016":47.18,"2018":30.88,"2019":4.68,"2020":8.62};
+const RENEWABLE_AVG = {"2000":19.46,"2001":18.49,"2002":18.6,"2003":17.93,"2004":17.39,"2005":17.48,"2006":17.19,"2007":16.55,"2008":17.05,"2009":16.14,"2010":15.02,"2011":14.92,"2012":14.99,"2013":15.11,"2014":14.74,"2015":14.84,"2016":14.82,"2017":14.73,"2018":14.39,"2019":14.39,"2020":14.41,"2021":14.41,"2022":14.65};
+const WATER_AVG = {"2000":85.11,"2001":85.41,"2002":85.51,"2003":85.64,"2004":85.79,"2005":85.98,"2006":86.17,"2007":86.34,"2008":86.49,"2009":86.64,"2010":86.77,"2011":86.86,"2012":86.94,"2013":87.08,"2014":87.21,"2015":87.32,"2016":87.43,"2017":87.54,"2018":87.63,"2019":87.75,"2020":88.04,"2021":87.34,"2022":88.65};
+
+const SST_BY_COUNTRY = {"FJ":{"1960":-0.1,"1961":-0.1,"1962":-0.1,"1963":-0.2,"1964":-0.1,"1965":-0.6,"1966":-0.4,"1967":-0.2,"1968":-0.1,"1969":-0.3,"1970":0.0,"1971":0.1,"1972":-0.2,"1973":0.2,"1974":0.3,"1975":0.2,"1976":0.0,"1977":-0.4,"1978":-0.3,"1979":-0.1,"1980":-0.1,"1981":-0.1,"1982":-0.3,"1983":-0.3,"1984":0.1,"1985":-0.1,"1986":-0.3,"1987":-0.4,"1988":0.4,"1989":0.1,"1990":0.1,"1991":-0.2,"1992":-0.2,"1993":-0.4,"1994":-0.4,"1995":0.1,"1996":0.2,"1997":-0.2,"1998":0.1,"1999":0.3,"2000":0.4,"2001":0.3,"2002":0.3,"2003":0.2,"2004":0.2,"2005":0.3,"2006":0.2,"2007":0.4,"2008":0.5,"2009":0.2,"2010":0.4,"2011":0.6,"2012":0.3,"2013":0.5,"2014":0.4,"2015":-0.1,"2016":0.5,"2017":0.5,"2018":0.4,"2019":0.4,"2020":0.5,"2021":0.7,"2022":1.1,"2023":0.5,"2024":0.6,"2025":0.7},"TO":{"1960":-0.1,"1961":0.1,"1962":-0.1,"1963":-0.2,"1964":0.0,"1965":-0.5,"1966":-0.3,"1967":-0.2,"1968":0.1,"1969":-0.2,"1970":0.1,"1971":0.2,"1972":-0.1,"1973":0.4,"1974":0.4,"1975":0.3,"1976":0.0,"1977":-0.4,"1978":-0.3,"1979":-0.2,"1980":0.0,"1981":-0.1,"1982":-0.2,"1983":-0.3,"1984":0.1,"1985":-0.1,"1986":-0.4,"1987":-0.5,"1988":0.4,"1989":0.1,"1990":0.0,"1991":-0.1,"1992":0.0,"1993":-0.3,"1994":-0.3,"1995":0.2,"1996":0.3,"1997":-0.2,"1998":0.0,"1999":0.4,"2000":0.5,"2001":0.2,"2002":0.3,"2003":0.3,"2004":0.4,"2005":0.4,"2006":0.3,"2007":0.4,"2008":0.6,"2009":0.3,"2010":0.6,"2011":0.8,"2012":0.4,"2013":0.6,"2014":0.4,"2015":-0.1,"2016":0.4,"2017":0.6,"2018":0.5,"2019":0.5,"2020":0.7,"2021":0.8,"2022":1.1,"2023":0.5,"2024":0.6,"2025":0.6},"KI":{"1960":-0.3,"1961":-0.4,"1962":-0.5,"1963":0.0,"1964":-0.7,"1965":0.1,"1966":0.3,"1967":-0.3,"1968":-0.1,"1969":0.6,"1970":-0.3,"1971":-1.0,"1972":0.2,"1973":-0.4,"1974":-1.0,"1975":-1.2,"1976":-0.5,"1977":0.2,"1978":-0.1,"1979":0.1,"1980":0.2,"1981":-0.3,"1982":0.5,"1983":0.0,"1984":-0.4,"1985":-0.4,"1986":0.1,"1987":0.7,"1988":-0.3,"1989":-0.6,"1990":0.3,"1991":0.7,"1992":0.5,"1993":0.4,"1994":0.6,"1995":0.3,"1996":-0.2,"1997":0.6,"1998":-0.1,"1999":-0.8,"2000":-0.7,"2001":0.0,"2002":0.7,"2003":0.6,"2004":0.6,"2005":0.4,"2006":0.4,"2007":0.1,"2008":-0.6,"2009":0.4,"2010":-0.1,"2011":-0.7,"2012":0.0,"2013":0.1,"2014":0.5,"2015":1.1,"2016":0.7,"2017":0.2,"2018":0.4,"2019":0.8,"2020":0.2,"2021":-0.3,"2022":-0.6,"2023":0.7,"2024":0.8,"2025":0.1},"VU":{"1960":-0.2,"1961":-0.2,"1962":0.0,"1963":-0.3,"1964":-0.2,"1965":-0.8,"1966":-0.6,"1967":-0.3,"1968":-0.2,"1969":-0.3,"1970":0.0,"1971":0.1,"1972":-0.3,"1973":0.1,"1974":0.3,"1975":0.2,"1976":-0.1,"1977":-0.4,"1978":-0.3,"1979":-0.1,"1980":-0.2,"1981":0.0,"1982":-0.3,"1983":-0.3,"1984":0.1,"1985":0.0,"1986":-0.2,"1987":-0.4,"1988":0.3,"1989":0.2,"1990":0.2,"1991":-0.3,"1992":-0.4,"1993":-0.6,"1994":-0.5,"1995":0.1,"1996":0.2,"1997":-0.2,"1998":0.4,"1999":0.4,"2000":0.3,"2001":0.4,"2002":0.2,"2003":0.2,"2004":0.1,"2005":0.3,"2006":0.1,"2007":0.4,"2008":0.5,"2009":0.2,"2010":0.4,"2011":0.5,"2012":0.3,"2013":0.4,"2014":0.3,"2015":-0.1,"2016":0.6,"2017":0.5,"2018":0.4,"2019":0.3,"2020":0.5,"2021":0.6,"2022":1.1,"2023":0.5,"2024":0.7,"2025":0.8},"TV":{"1960":-0.3,"1961":-0.4,"1962":-0.4,"1963":-0.3,"1964":-0.6,"1965":-0.4,"1966":0.0,"1967":-0.4,"1968":-0.3,"1969":0.3,"1970":-0.2,"1971":-0.6,"1972":-0.1,"1973":-0.2,"1974":-0.6,"1975":-0.7,"1976":-0.4,"1977":0.1,"1978":0.0,"1979":0.1,"1980":0.2,"1981":-0.1,"1982":0.1,"1983":-0.2,"1984":-0.2,"1985":-0.2,"1986":0.0,"1987":0.1,"1988":0.0,"1989":-0.3,"1990":0.3,"1991":0.4,"1992":0.2,"1993":0.1,"1994":0.3,"1995":0.4,"1996":0.1,"1997":0.2,"1998":-0.2,"1999":-0.3,"2000":-0.1,"2001":0.2,"2002":0.5,"2003":0.6,"2004":0.6,"2005":0.5,"2006":0.4,"2007":0.4,"2008":-0.2,"2009":0.4,"2010":0.2,"2011":-0.2,"2012":0.3,"2013":0.4,"2014":0.6,"2015":0.6,"2016":0.7,"2017":0.5,"2018":0.6,"2019":0.8,"2020":0.6,"2021":0.2,"2022":-0.1,"2023":0.6,"2024":0.9,"2025":0.4},"PG":{"1960":-0.3,"1961":-0.3,"1962":0.0,"1963":-0.1,"1964":-0.1,"1965":-0.8,"1966":-0.5,"1967":-0.3,"1968":-0.1,"1969":0.0,"1970":0.1,"1971":-0.1,"1972":-0.5,"1973":0.0,"1974":-0.1,"1975":-0.2,"1976":-0.3,"1977":-0.2,"1978":0.0,"1979":-0.1,"1980":-0.2,"1981":0.1,"1982":-0.4,"1983":-0.2,"1984":0.0,"1985":0.0,"1986":0.0,"1987":-0.3,"1988":0.2,"1989":0.2,"1990":0.0,"1991":-0.1,"1992":-0.4,"1993":-0.6,"1994":-0.1,"1995":0.3,"1996":0.5,"1997":-0.2,"1998":0.4,"1999":0.2,"2000":0.3,"2001":0.4,"2002":0.3,"2003":0.4,"2004":0.3,"2005":0.4,"2006":0.2,"2007":0.5,"2008":0.3,"2009":0.4,"2010":0.6,"2011":0.4,"2012":0.3,"2013":0.4,"2014":0.3,"2015":0.1,"2016":0.7,"2017":0.7,"2018":0.5,"2019":0.3,"2020":0.8,"2021":0.6,"2022":0.8,"2023":0.6,"2024":0.9,"2025":1.1},"WS":{"1960":-0.1,"1961":0.0,"1962":-0.1,"1963":0.0,"1964":-0.2,"1965":-0.3,"1966":0.0,"1967":-0.3,"1968":-0.1,"1969":0.2,"1970":0.0,"1971":-0.3,"1972":-0.2,"1973":0.1,"1974":-0.4,"1975":-0.4,"1976":-0.4,"1977":0.0,"1978":0.0,"1979":0.0,"1980":0.2,"1981":-0.1,"1982":0.0,"1983":-0.2,"1984":0.0,"1985":-0.2,"1986":0.0,"1987":0.0,"1988":0.1,"1989":-0.2,"1990":0.1,"1991":0.4,"1992":0.2,"1993":0.1,"1994":0.3,"1995":0.3,"1996":0.1,"1997":-0.1,"1998":-0.2,"1999":0.0,"2000":0.2,"2001":0.2,"2002":0.4,"2003":0.5,"2004":0.5,"2005":0.6,"2006":0.5,"2007":0.5,"2008":0.1,"2009":0.4,"2010":0.4,"2011":0.0,"2012":0.4,"2013":0.5,"2014":0.6,"2015":0.5,"2016":0.6,"2017":0.6,"2018":0.6,"2019":0.7,"2020":0.6,"2021":0.4,"2022":0.3,"2023":0.6,"2024":0.8,"2025":0.5},"MH":{"1960":0.0,"1961":0.0,"1962":0.2,"1963":0.3,"1964":-0.2,"1965":-0.2,"1966":0.1,"1967":0.1,"1968":0.1,"1969":0.2,"1970":-0.1,"1971":-0.3,"1972":-0.3,"1973":-0.3,"1974":-0.1,"1975":-0.5,"1976":-0.3,"1977":-0.1,"1978":-0.1,"1979":0.0,"1980":0.1,"1981":0.2,"1982":0.0,"1983":-0.3,"1984":0.1,"1985":0.0,"1986":0.1,"1987":-0.1,"1988":0.1,"1989":0.0,"1990":0.3,"1991":0.2,"1992":-0.1,"1993":-0.2,"1994":0.1,"1995":0.2,"1996":0.3,"1997":0.1,"1998":-0.3,"1999":-0.1,"2000":0.1,"2001":0.3,"2002":0.4,"2003":0.5,"2004":0.6,"2005":0.5,"2006":0.4,"2007":0.4,"2008":0.0,"2009":0.4,"2010":0.0,"2011":0.3,"2012":0.3,"2013":0.4,"2014":0.7,"2015":0.5,"2016":0.4,"2017":0.6,"2018":0.6,"2019":0.6,"2020":0.5,"2021":0.4,"2022":0.3,"2023":0.6,"2024":0.7,"2025":0.6}};
+const RAIN_BY_COUNTRY = {"FJ":{"1979":4.7,"1980":11.9,"1981":4.7,"1982":7.7,"1983":-11.1,"1984":3.6,"1985":12.7,"1986":8.6,"1987":-21.8,"1988":6.5,"1989":6.2,"1990":0.2,"1991":-9.4,"1992":-15.3,"1993":-4.6,"1994":-9.7,"1995":-10.9,"1996":10.3,"1997":8.9,"1998":-24.2,"1999":19.6,"2000":21.7,"2001":-1.8,"2002":-0.1,"2003":-17.8,"2004":-10.0,"2005":-5.1,"2006":-10.9,"2007":10.9,"2008":5.4,"2009":14.4,"2010":0.2,"2011":10.5,"2012":23.9,"2013":8.1,"2014":-14.4,"2015":-21.0,"2016":-0.7,"2017":-2.1,"2018":1.8,"2019":19.9,"2020":2.1,"2021":8.1,"2022":12.7,"2023":-3.3,"2024":16.6,"2025":1.3},"TO":{"1979":-19.5,"1980":-16.5,"1981":-14.8,"1982":-2.2,"1983":-26.0,"1984":-9.2,"1985":-12.7,"1986":-13.4,"1987":-26.3,"1988":3.0,"1989":-10.7,"1990":-3.6,"1991":-8.0,"1992":-10.5,"1993":0.1,"1994":-16.1,"1995":-3.2,"1996":-4.2,"1997":-3.4,"1998":-21.8,"1999":12.7,"2000":3.9,"2001":-8.0,"2002":-5.3,"2003":-17.0,"2004":-3.5,"2005":4.9,"2006":3.5,"2007":7.6,"2008":3.5,"2009":1.3,"2010":-2.8,"2011":5.3,"2012":8.1,"2013":8.5,"2014":1.1,"2015":-21.5,"2016":-4.3,"2017":16.9,"2018":7.8,"2019":37.0,"2020":7.3,"2021":3.2,"2022":1.4,"2023":-10.9,"2024":-2.0,"2025":16.3},"KI":{"1979":2.6,"1980":1.5,"1981":-2.8,"1982":19.2,"1983":11.1,"1984":-19.9,"1985":-12.6,"1986":-0.4,"1987":41.9,"1988":-14.0,"1989":-19.7,"1990":10.4,"1991":15.3,"1992":37.3,"1993":19.9,"1994":1.5,"1995":-18.4,"1996":-25.2,"1997":40.4,"1998":-16.9,"1999":-29.7,"2000":-26.1,"2001":-12.9,"2002":25.4,"2003":5.0,"2004":-1.5,"2005":-2.6,"2006":-0.3,"2007":-6.8,"2008":-22.2,"2009":2.9,"2010":18.5,"2011":-20.2,"2012":-8.7,"2013":-15.0,"2014":4.9,"2015":50.3,"2016":13.0,"2017":-24.0,"2018":-20.1,"2019":27.3,"2020":-10.9,"2021":-20.9,"2022":-28.0,"2023":16.7,"2024":-4.6,"2025":-22.3},"VU":{"1979":2.5,"1980":-3.3,"1981":-2.8,"1982":-0.6,"1983":-21.6,"1984":8.3,"1985":12.2,"1986":-0.9,"1987":-15.2,"1988":29.9,"1989":9.2,"1990":-9.3,"1991":-9.9,"1992":-11.6,"1993":-24.3,"1994":-11.7,"1995":-18.3,"1996":4.5,"1997":-16.9,"1998":0.9,"1999":22.6,"2000":23.6,"2001":1.8,"2002":8.6,"2003":-7.6,"2004":-13.6,"2005":-3.5,"2006":-7.3,"2007":7.2,"2008":7.4,"2009":5.9,"2010":1.1,"2011":17.7,"2012":17.7,"2013":9.0,"2014":0.4,"2015":-3.4,"2016":-13.3,"2017":1.7,"2018":-0.3,"2019":-2.4,"2020":14.1,"2021":11.9,"2022":33.7,"2023":8.7,"2024":8.0,"2025":-0.3},"TV":{"1979":-6.4,"1980":-1.6,"1981":-7.6,"1982":4.3,"1983":14.1,"1984":-4.9,"1985":-5.8,"1986":-0.5,"1987":37.3,"1988":2.7,"1989":-15.3,"1990":-2.3,"1991":-1.6,"1992":10.7,"1993":24.6,"1994":10.2,"1995":8.5,"1996":-13.2,"1997":21.7,"1998":25.5,"1999":-35.6,"2000":-34.5,"2001":-12.8,"2002":6.8,"2003":7.3,"2004":2.3,"2005":-1.7,"2006":-2.7,"2007":3.7,"2008":-29.7,"2009":-4.3,"2010":-8.0,"2011":-41.5,"2012":-8.0,"2013":8.5,"2014":-3.7,"2015":29.4,"2016":5.9,"2017":-1.6,"2018":-9.0,"2019":37.7,"2020":5.2,"2021":-15.2,"2022":-35.8,"2023":-12.0,"2024":4.5,"2025":-15.6},"PG":{"1979":-11.1,"1980":-2.8,"1981":5.9,"1982":-17.7,"1983":13.1,"1984":4.5,"1985":10.0,"1986":0.5,"1987":-10.0,"1988":11.8,"1989":3.4,"1990":3.2,"1991":-8.1,"1992":-14.3,"1993":-18.7,"1994":-10.2,"1995":5.0,"1996":-2.8,"1997":-26.7,"1998":12.3,"1999":7.4,"2000":5.5,"2001":6.0,"2002":-5.4,"2003":1.2,"2004":-9.2,"2005":5.2,"2006":1.3,"2007":4.9,"2008":9.6,"2009":5.3,"2010":10.1,"2011":5.2,"2012":7.6,"2013":6.8,"2014":-2.1,"2015":-20.2,"2016":1.2,"2017":7.0,"2018":-3.4,"2019":22.0,"2020":-2.4,"2021":3.2,"2022":-6.4,"2023":0.2,"2024":2.8,"2025":11.5},"WS":{"1979":-19.5,"1980":-8.4,"1981":0.2,"1982":-9.8,"1983":-19.6,"1984":0.9,"1985":-7.5,"1986":-5.5,"1987":-8.2,"1988":10.4,"1989":-17.3,"1990":2.8,"1991":-8.0,"1992":-4.8,"1993":3.3,"1994":3.9,"1995":3.0,"1996":-6.7,"1997":1.1,"1998":-21.2,"1999":0.0,"2000":-2.8,"2001":1.2,"2002":-2.4,"2003":-5.6,"2004":-7.0,"2005":-5.1,"2006":14.9,"2007":6.3,"2008":-11.1,"2009":-9.4,"2010":-1.9,"2011":-11.1,"2012":-6.9,"2013":7.6,"2014":0.0,"2015":0.7,"2016":0.3,"2017":12.6,"2018":1.3,"2019":20.4,"2020":27.3,"2021":-18.1,"2022":-20.7,"2023":-3.2,"2024":-1.8,"2025":13.9},"MH":{"1979":-2.2,"1980":-1.7,"1981":-5.5,"1982":3.0,"1983":-24.6,"1984":-25.9,"1985":-5.2,"1986":10.9,"1987":2.7,"1988":-15.7,"1989":3.4,"1990":9.1,"1991":12.1,"1992":-11.0,"1993":5.6,"1994":0.3,"1995":3.7,"1996":3.2,"1997":20.7,"1998":-20.2,"1999":-10.9,"2000":-1.7,"2001":-7.3,"2002":13.5,"2003":3.7,"2004":9.1,"2005":-6.5,"2006":-1.7,"2007":-8.0,"2008":-16.4,"2009":-6.4,"2010":-6.4,"2011":2.8,"2012":-15.3,"2013":-5.2,"2014":2.2,"2015":17.9,"2016":-6.5,"2017":-3.2,"2018":17.2,"2019":7.0,"2020":8.0,"2021":-2.1,"2022":8.1,"2023":8.9,"2024":3.0,"2025":-4.3}};
+const SEA_BY_COUNTRY = {"FJ":{"1993":0.0,"1994":0.0,"1995":0.0,"1996":0.0,"1997":0.0,"1998":0.0,"1999":0.0,"2000":1.0,"2001":0.0,"2002":0.0,"2003":0.0,"2004":0.0,"2005":0.0,"2006":0.0,"2007":0.0,"2008":1.0,"2009":1.0,"2010":0.0,"2011":1.0,"2012":1.0,"2013":1.0,"2014":0.0,"2015":0.0,"2016":0.0,"2017":1.0,"2018":1.0,"2019":1.0,"2020":1.0,"2021":1.0,"2022":2.0,"2023":1.0},"TO":{"1993":0.0,"1994":0.0,"1995":0.0,"1996":0.0,"1997":0.0,"1998":0.0,"1999":0.0,"2000":1.0,"2001":0.0,"2002":1.0,"2003":0.0,"2004":0.0,"2005":0.0,"2006":0.0,"2007":1.0,"2008":1.0,"2009":1.0,"2010":0.0,"2011":1.0,"2012":1.0,"2013":1.0,"2014":1.0,"2015":0.0,"2016":1.0,"2017":1.0,"2018":1.0,"2019":1.0,"2020":1.0,"2021":1.0,"2022":1.0,"2023":1.0},"KI":{"1993":0.0,"1994":0.0,"1995":0.0,"1996":0.0,"1997":0.0,"1998":-1.0,"1999":0.0,"2000":0.0,"2001":0.0,"2002":1.0,"2003":1.0,"2004":1.0,"2005":1.0,"2006":0.0,"2007":0.0,"2008":0.0,"2009":0.0,"2010":0.0,"2011":0.0,"2012":0.0,"2013":0.0,"2014":1.0,"2015":1.0,"2016":1.0,"2017":1.0,"2018":1.0,"2019":1.0,"2020":1.0,"2021":1.0,"2022":1.0,"2023":1.0},"VU":{"1993":0.0,"1994":0.0,"1995":0.0,"1996":0.0,"1997":0.0,"1998":0.0,"1999":0.0,"2000":0.0,"2001":1.0,"2002":0.0,"2003":0.0,"2004":0.0,"2005":0.0,"2006":0.0,"2007":0.0,"2008":1.0,"2009":1.0,"2010":0.0,"2011":1.0,"2012":1.0,"2013":0.0,"2014":0.0,"2015":0.0,"2016":0.0,"2017":1.0,"2018":1.0,"2019":1.0,"2020":1.0,"2021":1.0,"2022":2.0,"2023":2.0},"TV":{"1993":0.0,"1994":0.0,"1995":0.0,"1996":0.0,"1997":0.0,"1998":-2.0,"1999":0.0,"2000":0.0,"2001":0.0,"2002":1.0,"2003":0.0,"2004":1.0,"2005":1.0,"2006":1.0,"2007":1.0,"2008":1.0,"2009":0.0,"2010":0.0,"2011":1.0,"2012":0.0,"2013":1.0,"2014":1.0,"2015":1.0,"2016":0.0,"2017":1.0,"2018":1.0,"2019":1.0,"2020":1.0,"2021":1.0,"2022":1.0,"2023":1.0},"PG":{"1993":-1.0,"1994":0.0,"1995":0.0,"1996":0.0,"1997":0.0,"1998":-1.0,"1999":0.0,"2000":1.0,"2001":0.0,"2002":0.0,"2003":0.0,"2004":0.0,"2005":0.0,"2006":0.0,"2007":0.0,"2008":1.0,"2009":1.0,"2010":0.0,"2011":1.0,"2012":1.0,"2013":1.0,"2014":1.0,"2015":0.0,"2016":0.0,"2017":1.0,"2018":1.0,"2019":1.0,"2020":1.0,"2021":1.0,"2022":2.0,"2023":1.0},"WS":{"1993":0.0,"1994":0.0,"1995":0.0,"1996":1.0,"1997":0.0,"1998":-2.0,"1999":0.0,"2000":0.0,"2001":0.0,"2002":0.0,"2003":0.0,"2004":1.0,"2005":0.0,"2006":1.0,"2007":1.0,"2008":1.0,"2009":0.0,"2010":0.0,"2011":1.0,"2012":1.0,"2013":0.0,"2014":0.0,"2015":1.0,"2016":0.0,"2017":1.0,"2018":1.0,"2019":1.0,"2020":1.0,"2021":2.0,"2022":1.0,"2023":1.0},"MH":{"1993":0.0,"1994":0.0,"1995":0.0,"1996":0.0,"1997":-1.0,"1998":0.0,"1999":0.0,"2000":0.0,"2001":0.0,"2002":0.0,"2003":0.0,"2004":0.0,"2005":1.0,"2006":0.0,"2007":1.0,"2008":1.0,"2009":0.0,"2010":1.0,"2011":1.0,"2012":1.0,"2013":1.0,"2014":0.0,"2015":0.0,"2016":0.0,"2017":1.0,"2018":0.0,"2019":1.0,"2020":1.0,"2021":1.0,"2022":1.0,"2023":1.0}};
+const DISASTER_BY_COUNTRY = {"FJ":{"2005":0,"2006":60,"2007":12,"2008":804,"2009":12692,"2010":6644,"2011":344,"2012":37085,"2013":0,"2014":0,"2015":0,"2016":633584,"2017":0,"2018":155726,"2019":78045,"2020":235921,"2021":78030,"2022":1787},"TO":{"2005":0,"2006":0,"2007":0,"2008":0,"2009":7,"2010":0,"2011":345,"2012":0,"2013":0,"2014":4520,"2015":0,"2016":0,"2017":0,"2018":84311,"2019":640,"2020":68},"KI":{"2008":85,"2014":44,"2015":2507,"2016":0,"2018":0,"2019":3,"2020":15,"2021":333},"VU":{"2005":0,"2006":0,"2007":4,"2008":60,"2009":422,"2010":500,"2011":248,"2012":28,"2013":0,"2014":152,"2015":0,"2017":920,"2018":23286,"2019":18,"2020":246802,"2021":1400},"TV":{"2011":0,"2015":0,"2016":1003,"2017":0,"2018":0,"2019":0,"2020":2266,"2021":6,"2022":7748},"PG":{"2005":2,"2006":216,"2007":56284,"2008":36393,"2009":580,"2010":0,"2011":0,"2012":172,"2013":264,"2014":0,"2015":0,"2019":2100,"2020":3297},"WS":{"2005":0,"2006":0,"2008":0,"2009":6332,"2012":0,"2013":0,"2014":0,"2015":0,"2016":0,"2018":383,"2019":5700,"2020":195,"2021":15,"2022":16607,"2023":138},"MH":{"2006":0,"2008":96,"2011":0,"2013":0,"2014":280,"2015":0,"2016":27452,"2017":7029,"2018":0,"2019":35844,"2020":56718,"2021":0,"2022":52914}};
+const RENEWABLE_BY_COUNTRY = {"FJ":{"2000":50.06,"2001":40.44,"2002":48.98,"2003":40.83,"2004":35.72,"2005":40.02,"2006":39.07,"2007":36.04,"2008":42.13,"2009":41.62,"2010":27.95,"2011":33.38,"2012":33.26,"2013":32.81,"2014":33.17,"2015":28.55,"2016":24.64,"2017":26.03,"2018":24.41,"2019":24.78,"2020":25.03,"2021":29.92,"2022":26.67},"TO":{"2000":2.48,"2001":2.7,"2002":2.48,"2003":2.01,"2004":2.15,"2005":2.15,"2006":1.86,"2007":2.16,"2008":2.37,"2009":2.05,"2010":0.96,"2011":1.1,"2012":1.1,"2013":1.54,"2014":1.68,"2015":2.0,"2016":1.7,"2017":1.74,"2018":1.69,"2019":1.68,"2020":2.55,"2021":2.4,"2022":2.08},"KI":{"2000":54.73,"2001":56.39,"2002":53.05,"2003":50.52,"2004":50.55,"2005":48.51,"2006":48.12,"2007":48.42,"2008":49.74,"2009":50.44,"2010":50.14,"2011":50.51,"2012":48.73,"2013":46.16,"2014":47.98,"2015":47.48,"2016":48.1,"2017":42.51,"2018":42.31,"2019":42.19,"2020":42.24,"2021":42.23,"2022":41.86},"VU":{"2000":49.49,"2001":51.26,"2002":53.33,"2003":52.73,"2004":55.36,"2005":54.91,"2006":55.28,"2007":51.61,"2008":52.06,"2009":38.66,"2010":38.08,"2011":35.75,"2012":38.98,"2013":40.92,"2014":31.51,"2015":35.62,"2016":33.1,"2017":35.35,"2018":29.4,"2019":31.52,"2020":25.91,"2021":24.25,"2022":27.56},"TV":{"2000":0.04,"2001":0.03,"2002":0.02,"2003":0.03,"2004":0.02,"2005":0.02,"2006":0.02,"2007":0.02,"2008":0.2,"2009":0.25,"2010":0.45,"2011":0.21,"2012":0.27,"2013":0.7,"2014":0.65,"2015":2.98,"2016":7.27,"2017":6.98,"2018":6.03,"2019":6.12,"2020":6.31,"2021":5.38,"2022":5.52},"PG":{"2000":66.38,"2001":63.44,"2002":62.49,"2003":60.52,"2004":57.6,"2005":58.56,"2006":58.86,"2007":56.92,"2008":56.85,"2009":55.99,"2010":55.19,"2011":54.63,"2012":55.29,"2013":56.38,"2014":54.91,"2015":53.28,"2016":52.72,"2017":52.52,"2018":51.19,"2019":51.09,"2020":51.39,"2021":51.62,"2022":50.78},"WS":{"2000":59.69,"2001":52.41,"2002":49.58,"2003":52.41,"2004":48.82,"2005":48.89,"2006":45.96,"2007":43.18,"2008":45.0,"2009":43.17,"2010":41.93,"2011":40.64,"2012":40.21,"2013":42.7,"2014":41.43,"2015":37.06,"2016":36.78,"2017":35.23,"2018":35.58,"2019":33.75,"2020":33.84,"2021":30.54,"2022":31.75},"MH":{"2000":19.57,"2001":19.08,"2002":18.63,"2003":18.56,"2004":18.4,"2005":18.38,"2006":16.96,"2007":15.21,"2008":14.78,"2009":13.96,"2010":13.72,"2011":12.35,"2012":12.03,"2013":12.37,"2014":11.74,"2015":11.32,"2016":11.75,"2017":11.74,"2018":11.72,"2019":11.7,"2020":11.62,"2021":11.89,"2022":11.68}};
+const WATER_BY_COUNTRY = {"FJ":{"2000":94.82,"2001":94.84,"2002":94.87,"2003":94.89,"2004":94.91,"2005":94.94,"2006":94.96,"2007":94.98,"2008":95.01,"2009":95.04,"2010":95.08,"2011":95.11,"2012":95.14,"2013":95.18,"2014":95.21,"2015":95.24,"2016":95.28,"2017":95.31,"2018":95.35,"2019":95.38,"2020":95.42,"2021":95.45,"2022":95.49},"TO":{"2000":98.14,"2001":98.14,"2002":98.14,"2003":98.14,"2004":98.14,"2005":98.18,"2006":98.22,"2007":98.25,"2008":98.29,"2009":98.33,"2010":98.37,"2011":98.4,"2012":98.44,"2013":98.48,"2014":98.52,"2015":98.55,"2016":98.59,"2017":98.63,"2018":98.66,"2019":98.7,"2020":98.74,"2021":98.77,"2022":98.81},"KI":{"2000":60.89,"2001":61.67,"2002":62.31,"2003":62.95,"2004":63.59,"2005":64.23,"2006":65.01,"2007":65.89,"2008":66.75,"2009":67.53,"2010":68.19,"2011":68.84,"2012":69.49,"2013":70.12,"2014":70.76,"2015":71.38,"2016":71.99,"2017":72.59,"2018":73.18,"2019":73.75,"2020":74.31,"2021":74.86,"2022":75.69},"VU":{"2000":83.38,"2001":83.42,"2002":83.47,"2003":83.52,"2004":83.57,"2005":84.0,"2006":84.46,"2007":84.91,"2008":85.37,"2009":85.83,"2010":86.26,"2011":86.69,"2012":87.11,"2013":87.53,"2014":87.95,"2015":88.38,"2016":88.8,"2017":89.22,"2018":89.64,"2019":90.07,"2020":90.49,"2021":90.91,"2022":91.34},"PG":{"2000":31.75,"2001":31.74,"2002":31.73,"2003":31.72,"2004":31.71,"2005":32.74,"2006":33.77,"2007":34.8,"2008":35.83,"2009":36.86,"2010":37.88,"2011":38.9,"2012":39.91,"2013":40.93,"2014":41.95,"2015":42.97,"2016":43.99,"2017":45.02,"2018":46.05,"2019":47.08,"2020":48.11,"2021":49.17,"2022":50.24},"WS":{"2000":87.06,"2001":87.06,"2002":87.06,"2003":87.08,"2004":87.09,"2005":87.34,"2006":87.59,"2007":87.84,"2008":88.08,"2009":88.33,"2010":88.57,"2011":88.81,"2012":89.05,"2013":90.11,"2014":91.17,"2015":92.23,"2016":93.29,"2017":94.35,"2018":95.41,"2019":96.42,"2020":97.4,"2021":98.27,"2022":99.04},"MH":{"2001":88.85,"2002":88.8,"2003":88.76,"2004":88.72,"2005":88.68,"2006":88.56,"2007":88.44,"2008":88.32,"2009":88.16,"2010":87.89,"2011":87.63,"2012":87.38,"2013":87.13,"2014":86.88,"2015":86.64,"2016":86.4,"2017":86.17,"2018":85.94,"2019":85.72,"2020":85.49,"2021":85.28,"2022":85.06}};
+
+// ── STATE ──────────────────────────────────────────────
+let currentCountry = 'ALL';
+let lossMode = 'people';
+let currentSection = 'intro';
+const charts = {};
+const SECTIONS = ['intro','heat','rain','rising','loss','future','memory','closing'];
+const built = new Set();
+
+// ── HELPERS ────────────────────────────────────────────
+function getCountryData(avg, byCountry) {
+  if (currentCountry === 'ALL') return avg;
+  return byCountry[currentCountry] || avg;
+}
+function sortedEntries(obj) {
+  return Object.entries(obj).sort((a,b) => a[0].localeCompare(b[0]));
+}
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+function countryLabel() {
+  return currentCountry === 'ALL' ? 'Pacific Average' : PACIFIC_COUNTRIES[currentCountry];
+}
+
+// ── BACKGROUND CANVAS ──────────────────────────────────
+const BG = (() => {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let mode = 'intro';
+  let particles = [];
+  let t = 0;
+
+  const CFG = {
+    intro:  { n:65,  rgb:[88,148,210],  minR:.5, maxR:2,    spd:.13, a:.28, type:'drift'  },
+    heat:   { n:32,  rgb:[220,72,18],   minR:1.2,maxR:4,    spd:.07, a:.11, type:'float'  },
+    rain:   { n:110, rgb:[28,200,230],  minR:.3, maxR:.8,   spd:4.8, a:.38, type:'rain'   },
+    rising: { n:50,  rgb:[48,118,230],  minR:.5, maxR:2,    spd:.18, a:.22, type:'wave'   },
+    loss:   { n:22,  rgb:[188,44,44],   minR:4,  maxR:10,   spd:.12, a:.1,  type:'pulse'  },
+    future: { n:85,  rgb:[14,172,112],  minR:.3, maxR:1.4,  spd:.11, a:.32, type:'bio'    },
+    memory: { n:60,  rgb:[198,158,56],  minR:.5, maxR:1.8,  spd:.06, a:.26, type:'stars'  },
+    closing:{ n:38,  rgb:[201,168,76],  minR:.4, maxR:1.6,  spd:.05, a:.22, type:'float'  }
+  };
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    init();
+  }
+
+  function makeP(cfg) {
+    const W = canvas.width, H = canvas.height;
+    if (cfg.type === 'rain') return { x:Math.random()*W, y:Math.random()*H - H, vy:cfg.spd + Math.random()*2, vx:(Math.random()-.5)*.4, len:Math.random()*14+6, a:Math.random()*cfg.a+.1 };
+    if (cfg.type === 'pulse') return { x:Math.random()*W, y:Math.random()*H, r:0, maxR:Math.random()*90+40, spd:Math.random()*.25+.08, phase:Math.random()*Math.PI*2 };
+    return { x:Math.random()*W, y:Math.random()*H, vx:(Math.random()-.5)*cfg.spd*2, vy:(Math.random()-.5)*cfg.spd*2, r:Math.random()*(cfg.maxR-cfg.minR)+cfg.minR, a:Math.random()*cfg.a+cfg.a*.3, phase:Math.random()*Math.PI*2, blink:Math.random()*Math.PI*2 };
+  }
+
+  function init() {
+    const cfg = CFG[mode];
+    if (!cfg) return;
+    particles = Array.from({length: cfg.n}, () => makeP(cfg));
+  }
+
+  function draw() {
+    const cfg = CFG[mode]; if (!cfg) { requestAnimationFrame(draw); return; }
+    const [r,g,b] = cfg.rgb;
+    const W = canvas.width, H = canvas.height;
+    t += .012;
+
+    ctx.clearRect(0,0,W,H);
+    ctx.globalCompositeOperation = 'screen';
+
+    if (cfg.type === 'rain') {
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.y > H) { p.y = -20; p.x = Math.random()*W; }
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + p.vx*2.5, p.y - p.len);
+        ctx.strokeStyle = `rgba(${r},${g},${b},${p.a})`;
+        ctx.lineWidth = .6;
+        ctx.stroke();
+      });
+    } else if (cfg.type === 'pulse') {
+      particles.forEach(p => {
+        p.r += p.spd;
+        if (p.r > p.maxR) { p.r=0; p.x=Math.random()*W; p.y=Math.random()*H; }
+        const alpha = (1 - p.r/p.maxR) * .1;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+    } else {
+      // Connect particles in star/intro mode
+      if (cfg.type === 'stars' || cfg.type === 'drift') {
+        for (let i=0; i<particles.length; i++) {
+          for (let j=i+1; j<particles.length; j++) {
+            const dx = particles[i].x - particles[j].x;
+            const dy = particles[i].y - particles[j].y;
+            const d  = Math.sqrt(dx*dx + dy*dy);
+            if (d < 90) {
+              ctx.beginPath();
+              ctx.moveTo(particles[i].x, particles[i].y);
+              ctx.lineTo(particles[j].x, particles[j].y);
+              ctx.strokeStyle = `rgba(${r},${g},${b},${(1-d/90)*.045})`;
+              ctx.lineWidth = .5;
+              ctx.stroke();
+            }
+          }
+        }
+      }
+
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.phase += .018;
+        if (cfg.type === 'wave') p.y += Math.sin(t + p.phase) * .35;
+        if (cfg.type === 'float') { p.x += Math.sin(t*.6+p.phase)*.25; p.y += Math.cos(t*.4+p.phase)*.15; }
+
+        if (p.x<-2) p.x=W+2; if (p.x>W+2) p.x=-2;
+        if (p.y<-2) p.y=H+2; if (p.y>H+2) p.y=-2;
+
+        let alpha = p.a;
+        if (cfg.type === 'bio' || cfg.type === 'stars') alpha = p.a * (.55 + .45*Math.sin(t*1.8+p.blink));
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+        ctx.fill();
+
+        if (cfg.type === 'bio') {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r*3.5, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(${r},${g},${b},${alpha*.06})`;
+          ctx.fill();
+        }
+      });
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+    requestAnimationFrame(draw);
+  }
+
+  // Smooth particle transition
+  let targetMode = 'intro';
+  let transitionProgress = 1;
+  let transitionDuration = 90; // frames ~1.5s at 60fps
+  let transitionFrame = 0;
+
+  function setMode(m) {
+    if (targetMode !== m) {
+      targetMode = m;
+      mode = m;
+      transitionFrame = 0;
+      init();
+    }
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  draw();
+  return { setMode };
+})();
+
+// ── BEACH ENTRANCE ENGINE ────────────────────────────────────
+// Cinematic shoreline for the intro room only — pure visual layer
+const BEACH = (() => {
+  const canvas = document.getElementById('beach-canvas');
+  const ctx    = canvas.getContext('2d');
+  let W, H, active = true;
+  let raf = null;
+
+  // ── Timing helpers ───────────────────────────────────────
+  // All based on performance.now() so they never drift
+  const T0 = performance.now();
+  function sec() { return (performance.now() - T0) * 0.001; }
+
+  // Smooth ease-in-out for organic feel
+  function eio(x) { return x < 0.5 ? 2*x*x : 1-Math.pow(-2*x+2,2)/2; }
+
+  // ── Sky gradient (deep navy → indigo → peach horizon) ────
+  // Breathes very slowly — 28s full cycle
+  function drawSky(t) {
+    const breath = 0.5 + 0.5 * Math.sin(t * (Math.PI*2 / 28));
+    const horizonY = H * 0.48; // horizon sits just above mid
+
+    // Base sky — top to horizon
+    const sky = ctx.createLinearGradient(0, 0, 0, horizonY);
+    sky.addColorStop(0.00, `rgb(${lerp(4,6,breath)},${lerp(10,12,breath)},${lerp(28,34,breath)})`);
+    sky.addColorStop(0.30, `rgb(${lerp(6,9,breath)},${lerp(16,20,breath)},${lerp(46,54,breath)})`);
+    sky.addColorStop(0.62, `rgb(${lerp(10,14,breath)},${lerp(22,28,breath)},${lerp(52,62,breath)})`);
+    sky.addColorStop(0.85, `rgb(${lerp(18,24,breath)},${lerp(28,34,breath)},${lerp(55,64,breath)})`);
+    // Warm sunrise tint near horizon
+    sky.addColorStop(0.95, `rgb(${lerp(38,52,breath)},${lerp(32,38,breath)},${lerp(52,58,breath)})`);
+    sky.addColorStop(1.00, `rgb(${lerp(52,70,breath)},${lerp(38,46,breath)},${lerp(48,55,breath)})`);
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, horizonY + 2);
+
+    // Water — horizon to bottom
+    const water = ctx.createLinearGradient(0, horizonY, 0, H);
+    water.addColorStop(0.00, `rgb(${lerp(28,36,breath)},${lerp(42,52,breath)},${lerp(72,85,breath)})`);
+    water.addColorStop(0.18, `rgb(${lerp(10,14,breath)},${lerp(28,36,breath)},${lerp(60,72,breath)})`);
+    water.addColorStop(0.48, `rgb(${lerp(5,7,breath)},${lerp(18,24,breath)},${lerp(46,56,breath)})`);
+    water.addColorStop(0.78, `rgb(${lerp(3,5,breath)},${lerp(11,15,breath)},${lerp(30,38,breath)})`);
+    water.addColorStop(1.00, `rgb(${lerp(2,3,breath)},${lerp(7,9,breath)},${lerp(18,22,breath)})`);
+    ctx.fillStyle = water;
+    ctx.fillRect(0, horizonY, W, H - horizonY);
+
+    return horizonY;
+  }
+
+  // ── Sunrise glow on horizon ───────────────────────────────
+  // Slow warm bloom, 20s cycle
+  function drawHorizonGlow(t, horizonY) {
+    const pulse = 0.5 + 0.5 * Math.sin(t * (Math.PI*2 / 20));
+    const glowW = W * (0.38 + 0.12 * pulse);
+    const cx    = W * 0.5 + Math.sin(t * 0.08) * W * 0.04;
+
+    // Warm amber arc above horizon
+    const glow = ctx.createRadialGradient(cx, horizonY, 0, cx, horizonY, glowW);
+    glow.addColorStop(0.00, `rgba(255,${lerp(160,200,pulse)},80,${lerp(0.10,0.16,pulse)})`);
+    glow.addColorStop(0.35, `rgba(220,${lerp(120,160,pulse)},60,${lerp(0.06,0.10,pulse)})`);
+    glow.addColorStop(0.70, `rgba(160,90,40,${lerp(0.02,0.04,pulse)})`);
+    glow.addColorStop(1.00, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.ellipse(cx, horizonY, glowW, glowW * 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Soft reflection bloom on water surface below horizon
+    const refl = ctx.createLinearGradient(cx - glowW*0.5, horizonY, cx - glowW*0.5, horizonY + H*0.22);
+    refl.addColorStop(0, `rgba(255,${lerp(140,180,pulse)},60,${lerp(0.06,0.10,pulse)})`);
+    refl.addColorStop(0.5, `rgba(200,110,40,${lerp(0.02,0.04,pulse)})`);
+    refl.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = refl;
+    ctx.fillRect(cx - glowW*0.5, horizonY, glowW, H * 0.22);
+  }
+
+  // ── Horizon mist/fog layer ────────────────────────────────
+  // Soft drifting haze between sky and sea, 18s cycle drift
+  function drawHorizonMist(t, horizonY) {
+    const driftX = Math.sin(t * (Math.PI*2 / 18)) * W * 0.06;
+    const driftO = 0.5 + 0.5 * Math.sin(t * (Math.PI*2 / 22));
+    const mistH  = H * 0.055;
+
+    const mist = ctx.createLinearGradient(0, horizonY - mistH, 0, horizonY + mistH);
+    mist.addColorStop(0,   'rgba(120,150,200,0)');
+    mist.addColorStop(0.4, `rgba(130,160,210,${lerp(0.04,0.09,driftO)})`);
+    mist.addColorStop(0.5, `rgba(140,170,220,${lerp(0.06,0.12,driftO)})`);
+    mist.addColorStop(0.6, `rgba(110,140,190,${lerp(0.04,0.08,driftO)})`);
+    mist.addColorStop(1,   'rgba(80,110,160,0)');
+
+    ctx.save();
+    ctx.translate(driftX, 0);
+    ctx.fillStyle = mist;
+    ctx.fillRect(-driftX - W*0.1, horizonY - mistH, W * 1.2, mistH * 2);
+    ctx.restore();
+  }
+
+  // ── Wave system ───────────────────────────────────────────
+  // 4 layers with parallax depth:
+  //   layer 0 (far)    – slowest, lowest opacity, thin line
+  //   layer 1 (mid-far)
+  //   layer 2 (mid)
+  //   layer 3 (near)   – fastest, brightest, foam crest
+
+  const WAVE_LAYERS = [
+    // { yFrac, ampFrac, freqMult, speedMult, alpha, lineW, foamAlpha, phase }
+    { yFrac:0.50, ampFrac:0.012, freqMult:0.80, speedMult:0.55, alpha:0.10, lineW:0.8, foamAlpha:0.06, phase:0.00 },
+    { yFrac:0.60, ampFrac:0.016, freqMult:0.90, speedMult:0.70, alpha:0.14, lineW:1.0, foamAlpha:0.09, phase:1.30 },
+    { yFrac:0.73, ampFrac:0.022, freqMult:1.00, speedMult:0.85, alpha:0.20, lineW:1.4, foamAlpha:0.14, phase:2.60 },
+    { yFrac:0.87, ampFrac:0.028, freqMult:1.15, speedMult:1.00, alpha:0.28, lineW:1.8, foamAlpha:0.22, phase:4.10 },
+  ];
+
+  function drawWaves(t) {
+    // Breathing — slow 14s vertical oscillation shared across layers
+    const breathY = Math.sin(t * (Math.PI*2 / 14)) * H * 0.008;
+
+    WAVE_LAYERS.forEach((lyr, i) => {
+      const baseY = H * lyr.yFrac + breathY * (i + 1) * 0.5;
+      const amp   = H * lyr.ampFrac * (1 + 0.15 * Math.sin(t * 0.11 + lyr.phase));
+      const freq  = 0.0045 * lyr.freqMult;
+      // Speed: 10–18 second horizontal cycle — very slow, organic
+      const cycleT = 10 + i * 2; // 10s, 12s, 14s, 16s
+      const offset = (t / cycleT) * W * lyr.speedMult;
+
+      // ── Main wave body (filled area) ──────────────────────
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+
+      for (let x = 0; x <= W + 4; x += 3) {
+        // Two overlapping sines for organic shape
+        const y = baseY
+          + Math.sin(x * freq + offset * 0.0052 + lyr.phase) * amp
+          + Math.sin(x * freq * 1.62 - offset * 0.0031 + lyr.phase * 0.7) * amp * 0.38
+          + Math.sin(x * freq * 0.47 + offset * 0.0018) * amp * 0.22;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+
+      ctx.lineTo(W, H);
+      ctx.closePath();
+
+      const wGrad = ctx.createLinearGradient(0, baseY - amp, 0, baseY + amp * 2);
+      wGrad.addColorStop(0,   `rgba(80,140,200,${lyr.alpha * 0.6})`);
+      wGrad.addColorStop(0.5, `rgba(60,110,175,${lyr.alpha * 0.4})`);
+      wGrad.addColorStop(1,   `rgba(20,50,100,0)`);
+      ctx.fillStyle = wGrad;
+      ctx.fill();
+
+      // ── Wave crest line ───────────────────────────────────
+      ctx.beginPath();
+      for (let x = 0; x <= W + 4; x += 3) {
+        const y = baseY
+          + Math.sin(x * freq + offset * 0.0052 + lyr.phase) * amp
+          + Math.sin(x * freq * 1.62 - offset * 0.0031 + lyr.phase * 0.7) * amp * 0.38
+          + Math.sin(x * freq * 0.47 + offset * 0.0018) * amp * 0.22;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = `rgba(180,220,255,${lyr.alpha * 0.9})`;
+      ctx.lineWidth   = lyr.lineW;
+      ctx.stroke();
+
+      // ── Foam crest (only on top two near-layers) ──────────
+      if (i >= 2) {
+        ctx.beginPath();
+        for (let x = 0; x <= W + 4; x += 4) {
+          const y = baseY
+            + Math.sin(x * freq + offset * 0.0052 + lyr.phase) * amp
+            + Math.sin(x * freq * 1.62 - offset * 0.0031 + lyr.phase * 0.7) * amp * 0.38
+            + Math.sin(x * freq * 0.47 + offset * 0.0018) * amp * 0.22;
+          // Foam sits just on the peak
+          if (x === 0) ctx.moveTo(x, y - 1.5);
+          else ctx.lineTo(x, y - 1.5);
+        }
+        ctx.strokeStyle = `rgba(230,245,255,${lyr.foamAlpha})`;
+        ctx.lineWidth   = lyr.lineW * 2.2;
+        ctx.stroke();
+      }
+    });
+  }
+
+  // ── Sunlight shimmer bands on water ──────────────────────
+  // 3 horizontal light bands drifting slowly, 12–16s cycles
+  function drawShimmer(t, horizonY) {
+    const waterTop = horizonY;
+
+    for (let s = 0; s < 4; s++) {
+      const cycleS = 12 + s * 1.8;
+      const progS  = (t / cycleS) % 1;
+      const xShift = (progS * W * 1.6 - W * 0.3) + Math.sin(t * 0.12 + s * 1.4) * W * 0.04;
+      const yPos   = waterTop + (H - waterTop) * (0.08 + s * 0.18);
+      const bandW  = W * (0.12 + 0.08 * Math.sin(t * 0.07 + s));
+      const bandH  = (H - waterTop) * 0.025;
+      const alpha  = lerp(0.04, 0.09, 0.5 + 0.5 * Math.sin(t * (Math.PI*2/16) + s * 0.9));
+
+      const shimGrad = ctx.createLinearGradient(xShift, 0, xShift + bandW, 0);
+      shimGrad.addColorStop(0,   'rgba(220,240,255,0)');
+      shimGrad.addColorStop(0.3, `rgba(220,240,255,${alpha})`);
+      shimGrad.addColorStop(0.5, `rgba(240,252,255,${alpha * 1.3})`);
+      shimGrad.addColorStop(0.7, `rgba(220,240,255,${alpha})`);
+      shimGrad.addColorStop(1,   'rgba(220,240,255,0)');
+      ctx.fillStyle = shimGrad;
+      ctx.fillRect(xShift, yPos - bandH * 0.5, bandW, bandH);
+    }
+  }
+
+  // ── Soft vignette to blend into content ──────────────────
+  function drawBeachVignette() {
+    // Top darken (so nav text stays readable)
+    const topV = ctx.createLinearGradient(0, 0, 0, H * 0.18);
+    topV.addColorStop(0, 'rgba(3,10,22,0.72)');
+    topV.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = topV;
+    ctx.fillRect(0, 0, W, H * 0.18);
+
+    // Bottom darken (fade waves into content)
+    const botV = ctx.createLinearGradient(0, H * 0.78, 0, H);
+    botV.addColorStop(0, 'rgba(0,0,0,0)');
+    botV.addColorStop(1, 'rgba(3,8,18,0.65)');
+    ctx.fillStyle = botV;
+    ctx.fillRect(0, H * 0.78, W, H * 0.22);
+
+    // Left+right soft edge vignette
+    const edgeL = ctx.createLinearGradient(0, 0, W * 0.12, 0);
+    edgeL.addColorStop(0, 'rgba(3,10,22,0.28)');
+    edgeL.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = edgeL;
+    ctx.fillRect(0, 0, W * 0.12, H);
+
+    const edgeR = ctx.createLinearGradient(W * 0.88, 0, W, 0);
+    edgeR.addColorStop(0, 'rgba(0,0,0,0)');
+    edgeR.addColorStop(1, 'rgba(3,10,22,0.28)');
+    ctx.fillStyle = edgeR;
+    ctx.fillRect(W * 0.88, 0, W * 0.12, H);
+  }
+
+  // Utility lerp
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  // ── Resize ───────────────────────────────────────────────
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  // ── Render loop ──────────────────────────────────────────
+  function draw() {
+    if (!active) { raf = requestAnimationFrame(draw); return; }
+    const t = sec();
+
+    ctx.clearRect(0, 0, W, H);
+
+    // 1. Sky + water gradient base
+    const horizonY = drawSky(t);
+
+    // 2. Horizon sunrise glow
+    drawHorizonGlow(t, horizonY);
+
+    // 3. Wave layers
+    drawWaves(t);
+
+    // 4. Water shimmer bands
+    drawShimmer(t, horizonY);
+
+    // 5. Horizon mist/fog
+    drawHorizonMist(t, horizonY);
+
+    // 6. Vignette
+    drawBeachVignette();
+
+    raf = requestAnimationFrame(draw);
+  }
+
+  function show() {
+    active = true;
+    canvas.classList.remove('hidden');
+  }
+
+  function hide() {
+    active = false;
+    canvas.classList.add('hidden');
+    // Clear after fade so it doesn't consume GPU when invisible
+    setTimeout(() => { if (!active) ctx.clearRect(0, 0, W, H); }, 2400);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  draw();
+
+  return { show, hide };
+})();
+
+// ── ATMOSPHERE ENGINE ──────────────────────────────────────────
+const ATMO = (() => {
+  const atmosCanvas = document.getElementById('bg-atmosphere');
+  const ctx = atmosCanvas.getContext('2d');
+  const gradLayer = document.getElementById('bg-gradient-layer');
+  const shimLayer = document.getElementById('bg-shimmer-layer');
+
+  let W, H, t = 0;
+  let currentMode = 'intro';
+  let targetMode  = 'intro';
+  let blendT = 1; // 0→1 transition progress
+  const BLEND_SPEED = 1 / 110; // ~1.8s at 60fps, cubic-bezier feel
+
+  // Room palette definitions
+  const MOODS = {
+    intro: {
+      grad: [
+        { stop: 0.0, r:  3, g:  9, b: 20 },
+        { stop: 0.5, r:  4, g: 13, b: 28 },
+        { stop: 1.0, r:  2, g:  8, b: 16 }
+      ],
+      waveCol: [60, 100, 160],
+      waveAlpha: 0.018,
+      waveSpeed: 0.0004,
+      shimmer: null,
+      vignette: [0, 10, 22]
+    },
+    heat: {
+      grad: [
+        { stop: 0.0, r: 18, g:  5, b:  3 },
+        { stop: 0.3, r: 60, g: 14, b:  4 },
+        { stop: 0.6, r: 90, g: 28, b:  8 },
+        { stop: 1.0, r: 12, g:  4, b:  2 }
+      ],
+      waveCol: [220, 72, 18],
+      waveAlpha: 0.08,
+      waveSpeed: 0.0018,
+      shimmer: 'heat',
+      vignette: [80, 18, 5]
+    },
+    rain: {
+      grad: [
+        { stop: 0.0, r:  2, g: 18, b: 38 },
+        { stop: 0.35,r:  4, g: 32, b: 62 },
+        { stop: 0.7, r:  6, g: 44, b: 78 },
+        { stop: 1.0, r:  2, g: 16, b: 34 }
+      ],
+      waveCol: [28, 160, 210],
+      waveAlpha: 0.07,
+      waveSpeed: 0.0022,
+      shimmer: 'rain',
+      vignette: [4, 48, 88]
+    },
+    rising: {
+      grad: [
+        { stop: 0.0, r:  2, g: 12, b: 42 },
+        { stop: 0.4, r:  4, g: 22, b: 72 },
+        { stop: 0.7, r:  6, g: 30, b: 88 },
+        { stop: 1.0, r:  2, g: 10, b: 36 }
+      ],
+      waveCol: [48, 118, 230],
+      waveAlpha: 0.10,
+      waveSpeed: 0.0012,
+      shimmer: 'rising',
+      vignette: [8, 32, 100]
+    },
+    loss: {
+      grad: [
+        { stop: 0.0, r: 14, g:  4, b:  4 },
+        { stop: 0.4, r: 28, g:  8, b:  8 },
+        { stop: 0.7, r: 20, g:  5, b:  5 },
+        { stop: 1.0, r: 10, g:  3, b:  3 }
+      ],
+      waveCol: [160, 30, 30],
+      waveAlpha: 0.05,
+      waveSpeed: 0.0006,
+      shimmer: 'loss',
+      vignette: [80, 10, 10]
+    },
+    future: {
+      grad: [
+        { stop: 0.0, r:  2, g: 18, b: 18 },
+        { stop: 0.4, r:  4, g: 36, b: 30 },
+        { stop: 0.7, r:  6, g: 52, b: 40 },
+        { stop: 1.0, r:  2, g: 16, b: 16 }
+      ],
+      waveCol: [14, 172, 112],
+      waveAlpha: 0.08,
+      waveSpeed: 0.001,
+      shimmer: 'future',
+      vignette: [10, 80, 55]
+    },
+    memory: {
+      grad: [
+        { stop: 0.0, r:  8, g:  6, b: 20 },
+        { stop: 0.4, r: 18, g: 12, b: 40 },
+        { stop: 0.7, r: 22, g: 16, b: 48 },
+        { stop: 1.0, r:  6, g:  4, b: 18 }
+      ],
+      waveCol: [198, 158, 56],
+      waveAlpha: 0.06,
+      waveSpeed: 0.0007,
+      shimmer: 'memory',
+      vignette: [60, 40, 10]
+    },
+    closing: {
+      grad: [
+        { stop: 0.0, r:  4, g:  8, b: 18 },
+        { stop: 0.5, r: 10, g: 16, b: 32 },
+        { stop: 1.0, r:  4, g:  6, b: 14 }
+      ],
+      waveCol: [80, 110, 170],
+      waveAlpha: 0.05,
+      waveSpeed: 0.0006,
+      shimmer: null,
+      vignette: [20, 30, 60]
+    }
+  };
+
+  function resize() {
+    W = atmosCanvas.width  = window.innerWidth;
+    H = atmosCanvas.height = window.innerHeight;
+  }
+
+  // Cubic-bezier easing approximation for (0.4,0,0.2,1)
+  function ease(x) {
+    // Approximation of cubic-bezier(0.4,0,0.2,1)
+    return x < 0.5
+      ? 2 * x * x * (1 + x * 0.6)
+      : 1 - Math.pow(-2 * x + 2, 2) * 0.28;
+  }
+
+  // Lerp between two mood gradient colors
+  function lerpColor(a, b, f) {
+    return {
+      r: Math.round(a.r + (b.r - a.r) * f),
+      g: Math.round(a.g + (b.g - a.g) * f),
+      b: Math.round(a.b + (b.b - a.b) * f)
+    };
+  }
+
+  function lerpArr(a, b, f) {
+    return [
+      a[0] + (b[0] - a[0]) * f,
+      a[1] + (b[1] - a[1]) * f,
+      a[2] + (b[2] - a[2]) * f
+    ];
+  }
+
+  function getBlendedMood(f) {
+    const mA = MOODS[currentMode] || MOODS.intro;
+    const mB = MOODS[targetMode]  || MOODS.intro;
+
+    // Blend gradient stops (both have same count or we use fixed 4)
+    const gradA = mA.grad, gradB = mB.grad;
+    const maxLen = Math.max(gradA.length, gradB.length);
+    const grad = [];
+    for (let i = 0; i < maxLen; i++) {
+      const sa = gradA[Math.min(i, gradA.length-1)];
+      const sb = gradB[Math.min(i, gradB.length-1)];
+      grad.push({
+        stop: sa.stop + (sb.stop - sa.stop) * f,
+        r: sa.r + (sb.r - sa.r) * f,
+        g: sa.g + (sb.g - sa.g) * f,
+        b: sa.b + (sb.b - sa.b) * f
+      });
+    }
+
+    return {
+      grad,
+      waveCol:   lerpArr(mA.waveCol, mB.waveCol, f),
+      waveAlpha: mA.waveAlpha + (mB.waveAlpha - mA.waveAlpha) * f,
+      waveSpeed: mA.waveSpeed + (mB.waveSpeed - mA.waveSpeed) * f,
+      vignette:  lerpArr(mA.vignette, mB.vignette, f),
+      shimmerTarget: mB.shimmer,
+      shimmerAlpha: f  // fade shimmer in during transition
+    };
+  }
+
+  // Wave flow lines for "ocean depth motion"
+  function drawWaveFlow(mood) {
+    const [wr, wg, wb] = mood.waveCol;
+    const alpha = mood.waveAlpha;
+    const spd   = mood.waveSpeed;
+
+    // Draw 4 slow horizontal sine-wave bands
+    for (let band = 0; band < 4; band++) {
+      const yBase = H * (0.18 + band * 0.22);
+      const amp   = 18 + band * 8;
+      const freq  = 0.004 + band * 0.002;
+      const phase = t * spd * 1000 + band * Math.PI * 0.6;
+      const bandAlpha = alpha * (0.4 + 0.6 * (1 - band / 4));
+
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 3) {
+        const y = yBase + Math.sin(x * freq + phase) * amp
+                        + Math.sin(x * freq * 1.7 + phase * 0.8) * (amp * 0.4);
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = `rgba(${wr},${wg},${wb},${bandAlpha})`;
+      ctx.lineWidth   = 1.5 - band * 0.2;
+      ctx.stroke();
+    }
+
+    // Upward light columns for "rising" room
+    if (targetMode === 'rising' || currentMode === 'rising') {
+      const riseF = targetMode === 'rising' ? ease(blendT) : (1 - ease(blendT));
+      for (let col = 0; col < 5; col++) {
+        const cx = W * (0.1 + col * 0.2) + Math.sin(t * 0.0004 + col) * 30;
+        const colH = H * (0.5 + 0.3 * Math.sin(t * 0.0003 + col * 0.9));
+        const grad2 = ctx.createLinearGradient(cx, H, cx, H - colH);
+        grad2.addColorStop(0, `rgba(48,118,230,${0.09 * riseF})`);
+        grad2.addColorStop(0.5, `rgba(80,160,255,${0.04 * riseF})`);
+        grad2.addColorStop(1, `rgba(48,118,230,0)`);
+        ctx.beginPath();
+        ctx.fillStyle = grad2;
+        ctx.fillRect(cx - 18, H - colH, 36, colH);
+      }
+    }
+  }
+
+  // Gradient background fill
+  function drawGradientBG(mood) {
+    const { grad } = mood;
+    const grd = ctx.createLinearGradient(0, 0, 0, H);
+    grad.forEach(s => {
+      grd.addColorStop(
+        Math.max(0, Math.min(1, s.stop)),
+        `rgb(${Math.round(s.r)},${Math.round(s.g)},${Math.round(s.b)})`
+      );
+    });
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Vignette + ambient radial glow
+  function drawVignette(mood) {
+    const [vr, vg, vb] = mood.vignette;
+
+    // Soft centre glow
+    const glow = ctx.createRadialGradient(W*0.5, H*0.42, 0, W*0.5, H*0.42, W*0.7);
+    glow.addColorStop(0,   `rgba(${vr},${vg},${vb},0.04)`);
+    glow.addColorStop(0.5, `rgba(${vr},${vg},${vb},0.02)`);
+    glow.addColorStop(1,   `rgba(0,0,0,0)`);
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // Edge vignette (darken corners)
+    const edge = ctx.createRadialGradient(W*0.5, H*0.5, H*0.2, W*0.5, H*0.5, W*0.85);
+    edge.addColorStop(0,   'rgba(0,0,0,0)');
+    edge.addColorStop(0.7, 'rgba(0,0,0,0.04)');
+    edge.addColorStop(1,   'rgba(0,0,0,0.28)');
+    ctx.fillStyle = edge;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Room-specific overlay effects
+  function drawRoomOverlay() {
+    // HEAT: shimmer distortion bands
+    if (targetMode === 'heat' || currentMode === 'heat') {
+      const hf = targetMode === 'heat' ? ease(blendT) : (1 - ease(blendT));
+      for (let i = 0; i < 3; i++) {
+        const y = H * (0.3 + i * 0.25) + Math.sin(t * 0.0015 + i * 1.2) * 20;
+        const w = W * (0.4 + 0.4 * Math.sin(t * 0.001 + i));
+        const x = (W - w) / 2 + Math.sin(t * 0.0008 + i) * 40;
+        const shimGrad = ctx.createLinearGradient(x, y-4, x, y+4);
+        shimGrad.addColorStop(0,   'rgba(255,100,20,0)');
+        shimGrad.addColorStop(0.5, `rgba(255,100,20,${0.04 * hf})`);
+        shimGrad.addColorStop(1,   'rgba(255,100,20,0)');
+        ctx.fillStyle = shimGrad;
+        ctx.fillRect(x, y-4, w, 8);
+      }
+    }
+
+    // RAIN: vertical streak overlay
+    if (targetMode === 'rain' || currentMode === 'rain') {
+      const rf = targetMode === 'rain' ? ease(blendT) : (1 - ease(blendT));
+      const streakOff = (t * 0.3) % H;
+      for (let i = 0; i < 18; i++) {
+        const sx = (W / 18) * i + Math.sin(i * 2.3) * 12;
+        const sy = (streakOff + H * 0.05 * i) % H;
+        const len = 60 + Math.sin(i * 1.7 + t * 0.001) * 30;
+        const streakGrad = ctx.createLinearGradient(sx, sy, sx + 2, sy + len);
+        streakGrad.addColorStop(0,   'rgba(100,220,255,0)');
+        streakGrad.addColorStop(0.3, `rgba(100,220,255,${0.05 * rf})`);
+        streakGrad.addColorStop(1,   'rgba(100,220,255,0)');
+        ctx.fillStyle = streakGrad;
+        ctx.fillRect(sx, sy, 1.2, len);
+      }
+    }
+
+    // LOSS: slow warning pulse ring
+    if (targetMode === 'loss' || currentMode === 'loss') {
+      const lf = targetMode === 'loss' ? ease(blendT) : (1 - ease(blendT));
+      const pulse = 0.5 + 0.5 * Math.sin(t * 0.001);
+      const pRad  = W * (0.2 + 0.15 * pulse);
+      const pGrad = ctx.createRadialGradient(W*0.5, H*0.5, pRad*0.2, W*0.5, H*0.5, pRad);
+      pGrad.addColorStop(0, 'rgba(180,30,30,0)');
+      pGrad.addColorStop(0.7, `rgba(180,30,30,${0.04 * lf * pulse})`);
+      pGrad.addColorStop(1, 'rgba(180,30,30,0)');
+      ctx.fillStyle = pGrad;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // FUTURE: breathing glow
+    if (targetMode === 'future' || currentMode === 'future') {
+      const ff = targetMode === 'future' ? ease(blendT) : (1 - ease(blendT));
+      const breath = 0.5 + 0.5 * Math.sin(t * 0.00075);
+      const bGrad = ctx.createRadialGradient(W*0.5, H*0.55, 0, W*0.5, H*0.55, W*0.55);
+      bGrad.addColorStop(0,   `rgba(14,200,120,${0.06 * ff * breath})`);
+      bGrad.addColorStop(0.5, `rgba(14,172,112,${0.03 * ff * breath})`);
+      bGrad.addColorStop(1,   'rgba(14,172,112,0)');
+      ctx.fillStyle = bGrad;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // MEMORY: slow ambient star-bloom glow
+    if (targetMode === 'memory' || currentMode === 'memory') {
+      const mf = targetMode === 'memory' ? ease(blendT) : (1 - ease(blendT));
+      const drift = Math.sin(t * 0.0005) * 40;
+      const mGrad = ctx.createRadialGradient(W*0.45 + drift, H*0.45, 0, W*0.45 + drift, H*0.45, W*0.5);
+      mGrad.addColorStop(0,   `rgba(200,160,55,${0.07 * mf})`);
+      mGrad.addColorStop(0.5, `rgba(180,130,40,${0.03 * mf})`);
+      mGrad.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.fillStyle = mGrad;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  // Noise-like texture overlay using tiled offset sine pattern
+  function drawNoiseTexture() {
+    const noiseAlpha = 0.022;
+    // Very subtle dot-noise: only draw on a sparse grid
+    const step = 6;
+    for (let y = 0; y < H; y += step) {
+      for (let x = 0; x < W; x += step) {
+        const n = Math.sin(x * 0.031 + t * 0.0003) * Math.cos(y * 0.028 + t * 0.00025);
+        if (n > 0.65) {
+          ctx.fillStyle = `rgba(255,255,255,${noiseAlpha * n})`;
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+  }
+
+  // Main render loop
+  function draw() {
+    t = performance.now();
+
+    // Advance blend
+    if (blendT < 1) {
+      blendT = Math.min(1, blendT + BLEND_SPEED);
+      if (blendT >= 1) currentMode = targetMode;
+    }
+
+    const f = ease(blendT);
+    const mood = getBlendedMood(f);
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Layer 1: gradient background
+    drawGradientBG(mood);
+
+    // Layer 2: wave flow lines (ocean depth motion)
+    drawWaveFlow(mood);
+
+    // Layer 3: room-specific atmospheric overlays
+    drawRoomOverlay();
+
+    // Layer 4: subtle noise texture
+    drawNoiseTexture();
+
+    // Layer 5: vignette
+    drawVignette(mood);
+
+    requestAnimationFrame(draw);
+  }
+
+  function setMode(m) {
+    if (targetMode !== m) {
+      currentMode = targetMode; // snap current to what we were transitioning to
+      blendT = 0;
+      targetMode = m;
+    }
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  draw();
+
+  return { setMode };
+})();
+
+// ── DETAIL PANEL ──────────────────────────────────────
+const panel = document.getElementById('detailPanel');
+
+function showPanel({ year, raw, type, country }) {
+  const accents = { heat:'#e8531a', rain:'#22d3ee', rising:'#3b82f6', people:'#c43030', econ:'#f97316' };
+  const accent = accents[type] || '#3b82f6';
+  panel.style.setProperty('--dp-accent', accent);
+
+  document.getElementById('dpYear').textContent    = year;
+  document.getElementById('dpCountry').textContent = country || countryLabel();
+
+  let fmtVal, interp;
+  if (type === 'heat') {
+    fmtVal = `${raw >= 0 ? '+' : ''}${raw.toFixed(2)}°C`;
+    interp = raw > 0.55 ? 'A critically hot year. Temperatures like this bleach coral reefs and intensify tropical storms across the Pacific basin.' :
+             raw > 0.25 ? 'Clearly above the pre-industrial baseline — part of a sustained warming trend since the 1990s.' :
+             raw < -0.1 ? 'A cooler-than-average year, typically associated with La Niña conditions in the central Pacific.' :
+             'Near the historical average — a reading that is itself becoming increasingly rare.';
+  } else if (type === 'rain') {
+    fmtVal = `${raw >= 0 ? '+' : ''}${raw.toFixed(1)} mm`;
+    interp = raw > 18  ? 'Severe excess rainfall. Events like this cause flooding, crop failure, and displacement across Pacific communities.' :
+             raw < -18 ? 'Extreme drought. Freshwater scarcity directly threatens food security, health, and livelihoods.' :
+             raw > 8   ? 'Notably above normal — periods of sustained heavy rain increase landslide and flood risk.' :
+             raw < -8  ? 'Below normal rainfall, straining water resources in vulnerable island communities.' :
+             'Within typical variability — though the amplitude of these swings is increasing over time.';
+  } else if (type === 'rising') {
+    fmtVal = `Index ${raw.toFixed(2)}`;
+    interp = raw > 1.2 ? 'Well above the 1993 baseline. At this level, king tides regularly inundate coastal land, threatening homes, crops, and freshwater lenses.' :
+             raw > 0.5 ? 'Steadily above baseline, consistent with the long-term rise measured by Pacific tide gauges.' :
+             raw < 0   ? 'A temporary low — often driven by strong El Niño events that shift ocean mass eastward. The long-term trend remains upward.' :
+             'Near the 1993 starting point — an increasingly distant benchmark.';
+  } else if (type === 'people') {
+    fmtVal = `${(raw||0).toLocaleString()} people`;
+    interp = raw > 100000 ? 'A catastrophic year. Events at this scale cause multi-generational trauma, forced relocation, and economic collapse that takes decades to recover from.' :
+             raw > 20000  ? 'A major disaster year. These events overwhelm local response capacity and require international humanitarian assistance.' :
+             raw > 5000   ? 'A significant impact year for these small-population nations — even a few thousand people represents a large proportion of many Pacific communities.' :
+             'A lower-impact year. In the Pacific context, even single large events can affect communities for years.';
+  } else if (type === 'econ') {
+    fmtVal = `$${(raw||0).toFixed(1)}M USD`;
+    interp = raw > 40 ? 'Economy-threatening losses. For Pacific island nations with GDPs often under $1 billion, this represents a severe developmental setback that takes years to overcome.' :
+             raw > 15 ? 'Substantial economic damage. Reconstruction costs divert resources away from education, health, and climate adaptation.' :
+             'Significant losses relative to the scale of Pacific island economies, even if the absolute figure appears small.';
+  }
+
+  document.getElementById('dpValue').textContent = fmtVal;
+  document.getElementById('dpInterp').textContent = interp;
+  panel.classList.add('show');
+}
+
+document.getElementById('dpClose').addEventListener('click', () => panel.classList.remove('show'));
+
+// Click outside to close
+document.getElementById('scroll-root').addEventListener('click', e => {
+  if (!panel.contains(e.target) && !e.target.closest('canvas')) panel.classList.remove('show');
+});
+
+// ── CHART CLICK HELPER ────────────────────────────────
+function makeClickHandler(type) {
+  return (evt, elements) => {
+    if (!elements.length) return;
+    const el = elements[0];
+    const chart = evt.chart;
+    const year  = chart.data.labels[el.index];
+    const raw   = chart.data.datasets[el.datasetIndex].data[el.index];
+    if (raw === null || raw === undefined) return;
+    showPanel({ year, raw, type });
+  };
+}
+
+// ── CHART DEFAULTS ────────────────────────────────────
+const SCALE_STYLE = {
+  ticks:  { color:'#4e6e8a', font:{ size:9, family:'Inter' } },
+  grid:   { color:'rgba(78,110,138,0.08)' },
+  border: { color:'rgba(78,110,138,0.16)' }
+};
+const TOOLTIP_BASE = {
+  backgroundColor: 'rgba(3,10,22,0.96)',
+  borderColor:     'rgba(78,110,138,0.28)',
+  borderWidth: 1,
+  titleColor: '#c8d8e8',
+  bodyColor:  '#c8d8e8',
+  titleFont:  { size:10, family:'Inter' },
+  bodyFont:   { size:11, family:'Inter' },
+  padding:    10,
+  displayColors: false
+};
+
+// ── INSIGHT CHIPS ─────────────────────────────────────
+function buildChips(containerId, type) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const chips = [];
+
+  if (type === 'heat') {
+    const d = Object.entries(getCountryData(SST_AVG, SST_BY_COUNTRY));
+    const max = d.reduce((a,b) => b[1]>a[1]?b:a, d[0]);
+    const min = d.reduce((a,b) => b[1]<a[1]?b:a, d[0]);
+    const rec = d.filter(e=>+e[0]>=2015);
+    const recAvg = rec.reduce((s,e)=>s+e[1],0)/rec.length;
+    chips.push({dot:'#e8531a', text:`Peak ${max[0]}: +${max[1].toFixed(2)}°C`});
+    if (recAvg > 0.3) chips.push({dot:'#e85030', text:`2015+ avg: +${recAvg.toFixed(2)}°C`});
+    chips.push({dot:'#5a7a99', text:`Coolest ${min[0]}: ${min[1].toFixed(2)}°C`});
+  } else if (type === 'rain') {
+    const d = Object.entries(getCountryData(RAIN_AVG, RAIN_BY_COUNTRY));
+    const maxWet = d.reduce((a,b) => b[1]>a[1]?b:a, d[0]);
+    const maxDry = d.reduce((a,b) => b[1]<a[1]?b:a, d[0]);
+    chips.push({dot:'#22d3ee', text:`Wettest ${maxWet[0]}: +${maxWet[1].toFixed(1)}mm`});
+    chips.push({dot:'#6366f1', text:`Driest ${maxDry[0]}: ${maxDry[1].toFixed(1)}mm`});
+  } else if (type === 'rising') {
+    const d = Object.entries(getCountryData(SEA_AVG, SEA_BY_COUNTRY)).sort((a,b)=>+a[0]-+b[0]);
+    const latest = d.at(-1);
+    const max = d.reduce((a,b)=>b[1]>a[1]?b:a, d[0]);
+    if (latest) chips.push({dot:'#3b82f6', text:`Latest (${latest[0]}): ${latest[1].toFixed(2)}`});
+    if (max) chips.push({dot:'#60a5fa', text:`Peak ${max[0]}: ${max[1].toFixed(2)}`});
+  } else if (type === 'loss') {
+    const d = Object.entries(getCountryData(DISASTER_AFFECTED_AVG, DISASTER_BY_COUNTRY));
+    const max = d.reduce((a,b)=>b[1]>a[1]?b:a, d[0]);
+    const total = d.reduce((s,e)=>s+e[1],0);
+    if (max) chips.push({dot:'#c43030', text:`Worst year ${max[0]}: ${max[1].toLocaleString()} people`});
+    chips.push({dot:'#9b3333', text:`Total recorded: ${total.toLocaleString()}`});
+  }
+
+  el.innerHTML = chips.map(c =>
+    `<span class="chip"><span class="chip-dot" style="background:${c.dot}"></span>${c.text}</span>`
+  ).join('');
+}
+
+// ── CHART BUILDERS ────────────────────────────────────
+
+function buildHeatChart() {
+  destroyChart('heat');
+  const raw  = getCountryData(SST_AVG, SST_BY_COUNTRY);
+  const keys = Object.keys(raw).sort();
+  const vals = keys.map(k => raw[k]);
+  const maxVal = Math.max(...vals);
+  const maxYear = keys[vals.indexOf(maxVal)];
+
+  document.getElementById('heatStat').textContent =
+    `${maxVal >= 0 ? '+' : ''}${maxVal.toFixed(2)}°C`;
+
+  charts.heat = new Chart(document.getElementById('heatChart'), {
+    type: 'line',
+    data: {
+      labels: keys,
+      datasets: [{
+        data: vals,
+        borderColor: 'rgba(232,83,26,0.9)',
+        borderWidth: 1.5,
+        pointRadius: vals.map((v,i) => keys[i] === maxYear ? 5 : 0),
+        pointBackgroundColor: '#e8531a',
+        pointBorderColor: 'rgba(255,220,180,0.9)',
+        pointBorderWidth: 1.5,
+        tension: 0.35,
+        fill: { target: {value:0}, above:'rgba(232,83,26,0.14)', below:'rgba(34,211,238,0.09)' }
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration:1800, easing:'easeInOutQuart' },
+      onClick: makeClickHandler('heat'),
+      plugins: {
+        legend: { display:false },
+        tooltip: { ...TOOLTIP_BASE,
+          callbacks: {
+            title: c => `Year ${c[0].label}`,
+            label: c => { const v=c.parsed.y; return `${v>=0?'+':''}${v.toFixed(2)}°C anomaly`; }
+          }
+        }
+      },
+      scales: {
+        x: { ...SCALE_STYLE, ticks:{...SCALE_STYLE.ticks, maxTicksLimit:9} },
+        y: { ...SCALE_STYLE, ticks:{...SCALE_STYLE.ticks, callback: v => v.toFixed(1)+'°C'} }
+      }
+    }
+  });
+  buildChips('heatChips','heat');
+}
+
+function buildRainChart() {
+  destroyChart('rain');
+  const raw  = getCountryData(RAIN_AVG, RAIN_BY_COUNTRY);
+  const keys = Object.keys(raw).sort();
+  const vals = keys.map(k => raw[k]);
+
+  charts.rain = new Chart(document.getElementById('rainChart'), {
+    type: 'bar',
+    data: {
+      labels: keys,
+      datasets: [{
+        data: vals,
+        backgroundColor: vals.map(v => v >= 0 ? 'rgba(34,211,238,0.58)' : 'rgba(99,102,241,0.5)'),
+        borderColor:     vals.map(v => v >= 0 ? 'rgba(34,211,238,0.88)' : 'rgba(99,102,241,0.85)'),
+        borderWidth: 1, borderRadius: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration:1600, easing:'easeInOutCubic' },
+      onClick: makeClickHandler('rain'),
+      plugins: {
+        legend: { display:false },
+        tooltip: { ...TOOLTIP_BASE,
+          callbacks: {
+            title: c => `Year ${c[0].label}`,
+            label: c => { const v=c.parsed.y; return `${v>=0?'+':''}${v.toFixed(1)} mm rainfall anomaly`; }
+          }
+        }
+      },
+      scales: {
+        x: { ...SCALE_STYLE, ticks:{...SCALE_STYLE.ticks, maxTicksLimit:10} },
+        y: { ...SCALE_STYLE, ticks:{...SCALE_STYLE.ticks, callback: v => v+' mm'} }
+      }
+    }
+  });
+  buildChips('rainChips','rain');
+}
+
+function buildRisingChart() {
+  destroyChart('rising');
+  const raw  = getCountryData(SEA_AVG, SEA_BY_COUNTRY);
+  const keys = Object.keys(raw).sort();
+  const vals = keys.map(k => raw[k]);
+  const latest = vals[vals.length-1];
+  document.getElementById('risingStat').textContent =
+    latest != null ? `${latest >= 0 ? '+' : ''}${latest.toFixed(2)}` : '—';
+
+  charts.rising = new Chart(document.getElementById('risingChart'), {
+    type: 'line',
+    data: {
+      labels: keys,
+      datasets: [{
+        data: vals,
+        borderColor: 'rgba(59,130,246,0.92)',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: 'rgba(59,130,246,0.8)',
+        pointBorderColor: 'rgba(96,165,250,0.6)',
+        pointBorderWidth: 1,
+        tension: 0.32,
+        fill: { target:'origin', above:'rgba(59,130,246,0.12)', below:'rgba(99,102,241,0.08)' }
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration:2000, easing:'easeInOutQuart' },
+      onClick: makeClickHandler('rising'),
+      plugins: {
+        legend: { display:false },
+        tooltip: { ...TOOLTIP_BASE,
+          callbacks: {
+            title: c => `Year ${c[0].label}`,
+            label: c => `Sea level index: ${c.parsed.y.toFixed(2)}`
+          }
+        }
+      },
+      scales: {
+        x: { ...SCALE_STYLE, ticks:{...SCALE_STYLE.ticks, maxTicksLimit:8} },
+        y: { ...SCALE_STYLE }
+      }
+    }
+  });
+  buildChips('risingChips','rising');
+}
+
+function buildLossChart() {
+  destroyChart('loss');
+  const isPeople = lossMode === 'people';
+  const raw  = isPeople ? getCountryData(DISASTER_AFFECTED_AVG, DISASTER_BY_COUNTRY) : DISASTER_LOSS_AVG;
+  const keys = Object.keys(raw).sort();
+  const vals = keys.map(k => raw[k]);
+
+  document.getElementById('lossLabel').textContent = isPeople
+    ? 'Persons Directly Affected by Disasters · per year · Click any bar to explore'
+    : 'Direct Economic Loss from Disasters · USD Millions · Click any bar to explore';
+
+  charts.loss = new Chart(document.getElementById('lossChart'), {
+    type: 'bar',
+    data: {
+      labels: keys,
+      datasets: [{
+        data: vals,
+        backgroundColor: isPeople ? 'rgba(180,36,36,0.58)' : 'rgba(240,120,20,0.55)',
+        borderColor:     isPeople ? 'rgba(200,56,56,0.88)' : 'rgba(250,140,30,0.88)',
+        borderWidth: 1, borderRadius: 3
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration:1400, easing:'easeInOutCubic' },
+      onClick: makeClickHandler(isPeople ? 'people' : 'econ'),
+      plugins: {
+        legend: { display:false },
+        tooltip: { ...TOOLTIP_BASE,
+          callbacks: {
+            title: c => `Year ${c[0].label}`,
+            label: c => isPeople
+              ? `${(c.parsed.y||0).toLocaleString()} people affected`
+              : `$${(c.parsed.y||0).toFixed(1)}M economic loss`
+          }
+        }
+      },
+      scales: {
+        x: { ...SCALE_STYLE, ticks:{...SCALE_STYLE.ticks, maxTicksLimit:9} },
+        y: { ...SCALE_STYLE, ticks:{...SCALE_STYLE.ticks,
+          callback: v => isPeople ? (v>=1000?(v/1000).toFixed(0)+'k':v) : '$'+v+'M'
+        }}
+      }
+    }
+  });
+  buildChips('lossChips','loss');
+}
+
+function buildFutureChart() {
+  destroyChart('future');
+  const renD = getCountryData(RENEWABLE_AVG, RENEWABLE_BY_COUNTRY);
+  const watD = getCountryData(WATER_AVG,     WATER_BY_COUNTRY);
+  const keys = [...new Set([...Object.keys(renD), ...Object.keys(watD)])].sort();
+
+  charts.future = new Chart(document.getElementById('futureChart'), {
+    type: 'line',
+    data: {
+      labels: keys,
+      datasets: [
+        {
+          label: 'Safe Water Access (%)',
+          data: keys.map(k => watD[k] ?? null),
+          borderColor: 'rgba(16,185,129,0.88)',
+          borderWidth: 2, pointRadius: 0, tension: 0.4,
+          yAxisID: 'yW'
+        },
+        {
+          label: 'Renewable Energy (%)',
+          data: keys.map(k => renD[k] ?? null),
+          borderColor: 'rgba(99,102,241,0.88)',
+          borderWidth: 2, pointRadius: 0, tension: 0.4,
+          borderDash: [4,3],
+          yAxisID: 'yR'
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration:1800, easing:'easeInOutQuart' },
+      plugins: {
+        legend: { display:true, labels:{ color:'#4e6e8a', font:{size:9,family:'Inter'}, boxWidth:18, padding:14 } },
+        tooltip: { ...TOOLTIP_BASE,
+          callbacks: {
+            title: c => `Year ${c[0].label}`,
+            label: c => `${c.dataset.label}: ${c.parsed.y?.toFixed(1)}%`
+          }
+        }
+      },
+      scales: {
+        x:  { ...SCALE_STYLE, ticks:{...SCALE_STYLE.ticks, maxTicksLimit:8} },
+        yW: { position:'left',  ...SCALE_STYLE, ticks:{...SCALE_STYLE.ticks, callback:v=>v+'%'} },
+        yR: { position:'right', ...SCALE_STYLE, ticks:{...SCALE_STYLE.ticks, callback:v=>v+'%'}, grid:{drawOnChartArea:false} }
+      }
+    }
+  });
+
+  // Progress bars
+  const watVals = Object.values(watD);
+  const renVals = Object.values(renD);
+  const lastWat = watVals.at(-1) || 88.6;
+  const lastRen = renVals.at(-1) || 14.7;
+  document.getElementById('waterVal').textContent = lastWat.toFixed(1)+'%';
+  document.getElementById('renewVal').textContent = lastRen.toFixed(1)+'%';
+  setTimeout(() => {
+    document.getElementById('waterBar').style.width = Math.min(lastWat, 100)+'%';
+    document.getElementById('renewBar').style.width = Math.min(lastRen*2.2, 100)+'%';
+  }, 450);
+}
+
+// ── MEMORY CARD ───────────────────────────────────────
+function buildMemoryCard() {
+  const name = countryLabel();
+  document.getElementById('mcCountry').textContent = name;
+
+  const sstD = Object.entries(getCountryData(SST_AVG, SST_BY_COUNTRY));
+  const rainD= Object.entries(getCountryData(RAIN_AVG, RAIN_BY_COUNTRY));
+  const seaD = Object.entries(getCountryData(SEA_AVG,  SEA_BY_COUNTRY)).sort((a,b)=>+a[0]-+b[0]);
+  const disD = Object.entries(getCountryData(DISASTER_AFFECTED_AVG, DISASTER_BY_COUNTRY));
+  const renD = Object.entries(getCountryData(RENEWABLE_AVG, RENEWABLE_BY_COUNTRY)).sort((a,b)=>+a[0]-+b[0]);
+  const watD = Object.entries(getCountryData(WATER_AVG,     WATER_BY_COUNTRY)).sort((a,b)=>+a[0]-+b[0]);
+
+  const maxSST  = sstD.length  ? sstD.reduce((a,b)=>b[1]>a[1]?b:a)  : ['—','—'];
+  const extremeRain = rainD.length ? rainD.reduce((a,b)=>Math.abs(b[1])>Math.abs(a[1])?b:a) : ['—','—'];
+  const latestSea   = seaD.at(-1)  || ['—','—'];
+  const maxDis  = disD.length  ? disD.reduce((a,b)=>b[1]>a[1]?b:a)  : ['—','—'];
+  const latestRen   = renD.at(-1)  || ['—','—'];
+  const latestWat   = watD.at(-1)  || ['—','—'];
+
+  const fmt = (v,d) => v === '—' ? '—' : Number(v).toFixed(d??2);
+  const fmtK = v => v==='—' ? '—' : +v >= 1000 ? (+v/1000).toFixed(0)+'k' : String(v);
+
+  const stats = [
+    { val: `${+maxSST[1]>=0?'+':''}${fmt(maxSST[1])}°C`, key: `Peak heat · ${maxSST[0]}`,   color: 'var(--heat-col)' },
+    { val: `${+extremeRain[1]>=0?'+':''}${fmt(extremeRain[1],1)}mm`, key:`Extreme rain · ${extremeRain[0]}`, color:'var(--rain-col)' },
+    { val: `${+latestSea[1]>=0?'+':''}${fmt(latestSea[1])}`, key:`Sea level index · ${latestSea[0]}`, color:'var(--rise-col)' },
+    { val: fmtK(maxDis[1]), key: `Disaster impact · ${maxDis[0]}`, color: 'var(--loss-col)' },
+    { val: `${fmt(latestRen[1],1)}%`,  key: `Renewable energy · ${latestRen[0]}`,  color:'var(--future-col)' },
+    { val: `${fmt(latestWat[1],1)}%`,  key: `Safe water access · ${latestWat[0]}`, color:'var(--future-col)' }
+  ];
+
+  document.getElementById('mcGrid').innerHTML = stats.map(s =>
+    `<div class="mc-stat">
+      <div class="mc-val" style="color:${s.color}">${s.val}</div>
+      <div class="mc-key">${s.key}</div>
+    </div>`
+  ).join('');
+
+  // Personalised quotes
+  const quotes = {
+    FJ: '"Fiji has faced the ocean\'s anger with fierce grace — from Winston\'s fury to solar-powered hope. But the sea does not forgive easily."',
+    TO: '"Tonga\'s islands have been shaped by the ocean for millennia. The water is now rising faster than any living generation has known."',
+    KI: '"Kiribati may become the world\'s first climate refugee nation. Its story is not a warning — it is a reality already unfolding."',
+    TV: '"Tuvalu stands barely two metres above sea level. In the mathematics of climate change, every centimetre is measured in futures lost."',
+    MH: '"The Marshall Islands are disappearing. Their negotiations at climate summits are not policy arguments — they are survival."',
+    VU: '"Vanuatu faces cyclones, earthquakes, and rising seas simultaneously. Yet its communities rebuild with extraordinary human resilience."',
+    PG: '"Papua New Guinea\'s vast coasts and highland communities face compounding climate pressures across every ecosystem."',
+    WS: '"Samoa has invested deeply in both preparation and clean energy. Amid the crisis, it is writing a model for Pacific adaptation."',
+    ALL: '"The ocean does not forget. It stores every degree we have added, every coastline we have dissolved, every storm we have made stronger. What it holds now is a question only we can answer."'
+  };
+  document.getElementById('memoryQuote').textContent = quotes[currentCountry] || quotes.ALL;
+
+  const contexts = {
+    FJ:'Fiji — a nation of 900,000 people across 330 islands — has lost livelihoods and lives to intensifying cyclones. It is also one of the Pacific\'s leading voices for climate justice.',
+    KI:'Kiribati\'s 33 atolls barely rise above the ocean. The government has purchased land in Fiji as a contingency. This archive is their testimony.',
+    TV:'With a population of just 11,000 on nine low-lying atolls, Tuvalu has among the world\'s lowest carbon footprints — and among the world\'s highest climate risks.',
+    MH:'The Marshall Islands\' climate story is inseparable from nuclear history. The same waters that absorbed bomb tests are now erasing its coastlines.',
+    ALL:'Twenty-two Pacific nations and territories. Millions of people. Thousands of years of culture. One shared ocean — and one shared future.'
+  };
+  document.getElementById('memoryContext').textContent = contexts[currentCountry] || contexts.ALL;
+}
+
+// ── SECTION ENTER ────────────────────────────────────
+const BG_MODES = {
+  intro:'intro', heat:'heat', rain:'rain', rising:'rising',
+  loss:'loss', future:'future', memory:'memory', closing:'closing'
+};
+
+function onSectionEnter(id) {
+  BG.setMode(BG_MODES[id] || 'intro');
+  ATMO.setMode(BG_MODES[id] || 'intro');
+  // Beach shore scene only on intro
+  if (id === 'intro') { BEACH.show(); } else { BEACH.hide(); }
+  const showSel = ['heat','rain','rising','loss','future'].includes(id);
+  document.getElementById('countrySelector').classList.toggle('visible', showSel);
+
+  document.querySelectorAll('.nav-dot').forEach(d => d.classList.remove('active'));
+  const dot = document.querySelector(`.nav-dot[data-section="${id}"]`);
+  if (dot) dot.classList.add('active');
+
+  if (built.has(id)) return;
+  built.add(id);
+
+  const inner = document.querySelector(`#${id} .section-inner, #${id} .closing-inner`);
+  if (inner) setTimeout(() => inner.classList.add('visible'), 80);
+
+  if (id === 'heat')   buildHeatChart();
+  if (id === 'rain')   buildRainChart();
+  if (id === 'rising') buildRisingChart();
+  if (id === 'loss')   buildLossChart();
+  if (id === 'future') buildFutureChart();
+  if (id === 'memory') buildMemoryCard();
+}
+
+// ── INTERSECTION OBSERVER ────────────────────────────
+const scrollRoot = document.getElementById('scroll-root');
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting && e.intersectionRatio >= 0.5) {
+      onSectionEnter(e.target.id);
+    }
+  });
+}, { root: scrollRoot, threshold: 0.5 });
+
+SECTIONS.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) observer.observe(el);
+});
+
+// ── NAV DOTS ─────────────────────────────────────────
+document.querySelectorAll('.nav-dot').forEach(dot => {
+  dot.addEventListener('click', () => {
+    const el = document.getElementById(dot.dataset.section);
+    if (el) el.scrollIntoView({ behavior:'smooth' });
+  });
+});
+
+// ── RETURN TO ENTRANCE ───────────────────────────────
+document.getElementById('returnToEntrance')?.addEventListener('click', () => {
+  document.getElementById('intro')?.scrollIntoView({ behavior:'smooth' });
+});
+
+// ── COUNTRY SELECTOR ─────────────────────────────────
+const selEl = document.getElementById('countrySelect');
+Object.entries(PACIFIC_COUNTRIES).forEach(([code, name]) => {
+  const opt = document.createElement('option');
+  opt.value = code; opt.textContent = name;
+  selEl.appendChild(opt);
+});
+
+selEl.addEventListener('change', () => {
+  currentCountry = selEl.value;
+  panel.classList.remove('show');
+  // Rebuild visible charts
+  if (built.has('heat'))   buildHeatChart();
+  if (built.has('rain'))   buildRainChart();
+  if (built.has('rising')) buildRisingChart();
+  if (built.has('loss'))   buildLossChart();
+  if (built.has('future')) buildFutureChart();
+  if (built.has('memory')) buildMemoryCard();
+});
+
+// ── LOSS TOGGLE ──────────────────────────────────────
+document.querySelectorAll('.toggle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    lossMode = btn.dataset.mode;
+    buildLossChart();
+  });
+});
+
+// ── INIT ─────────────────────────────────────────────
+setTimeout(() => {
+  const intro = document.querySelector('#intro .section-inner');
+  if (intro) intro.classList.add('visible');
+  BG.setMode('intro');
+  ATMO.setMode('intro');
+  BEACH.show();
+}, 120);
+</script>
+</body>
+</html>
